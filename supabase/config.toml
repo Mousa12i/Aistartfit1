@@ -1,0 +1,27 @@
+[functions.ai-coach]
+verify_jwt = true
+entrypoint = "./functions/ai-coach/index.ts"
+
+[functions.create-checkout]
+verify_jwt = true
+entrypoint = "./functions/create-checkout/index.ts"
+
+[functions.stripe-webhook]
+verify_jwt = false
+entrypoint = "./functions/stripe-webhook/index.ts"
+
+[functions.routine-generator]
+verify_jwt = true
+entrypoint = "./functions/routine-generator/index.ts"
+
+[functions.blueprint-checkout]
+verify_jwt = true
+entrypoint = "./functions/blueprint-checkout/index.ts"
+
+[functions.billing-portal]
+verify_jwt = true
+entrypoint = "./functions/billing-portal/index.ts"
+
+[functions.recovery-doctor]
+verify_jwt = true
+entrypoint = "./functions/recovery-doctor/index.ts"
