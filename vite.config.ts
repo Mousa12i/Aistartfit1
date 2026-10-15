@@ -21,6 +21,21 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY),
     },
+    build: {
+      // Split big libraries into their own files so the app loads in parallel and caches better.
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ['react', 'react-dom', 'react-router-dom'],
+            three: ['three', '@react-three/fiber', '@react-three/drei'],
+            charts: ['recharts'],
+            supabase: ['@supabase/supabase-js'],
+          },
+        },
+      },
+      // The 3D engine (three.js) is one library of about 700 kB on its own and cannot be split further.
+      chunkSizeWarningLimit: 900,
+    },
     optimizeDeps: {
       exclude: ['lucide-react'],
     },
