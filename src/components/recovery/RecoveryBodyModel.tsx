@@ -26,25 +26,27 @@ interface RegionDef {
 // X[-0.39, 0.39], Y[0, 1.9], Z[-0.19, 0.19]
 // Ordered most-specific first so smaller regions win over broader ones.
 const REGIONS: RegionDef[] = [
-  { muscle: 'adductors', center: [0, -0.05, 0.06], test: (x, y, _z) => y > -0.25 && y < 0.18 && Math.abs(x) < 0.06 },
-  { muscle: 'obliques', center: [-0.14, 0.76, 0.1], test: (x, y, z) => y > 0.6 && y < 0.92 && Math.abs(x) > 0.1 && Math.abs(x) < 0.2 && z > 0.04 },
-  { muscle: 'traps', center: [0, 1.45, -0.1], test: (x, y, z) => y > 1.35 && y < 1.58 && Math.abs(x) < 0.18 && z < 0.04 },
-  { muscle: 'upper_chest', center: [0, 1.22, 0.15], test: (x, y, z) => y > 1.1 && y < 1.35 && Math.abs(x) < 0.2 && z > 0.06 },
-  { muscle: 'lower_chest', center: [0, 1.0, 0.14], test: (x, y, z) => y > 0.9 && y < 1.1 && Math.abs(x) < 0.2 && z > 0.06 },
-  { muscle: 'front_delts', center: [-0.28, 1.2, 0.1], test: (x, y, z) => y > 1.1 && y < 1.4 && Math.abs(x) > 0.18 && Math.abs(x) < 0.36 && z > 0.03 },
-  { muscle: 'side_delts', center: [-0.36, 1.2, 0], test: (x, y, _z) => y > 1.1 && y < 1.4 && Math.abs(x) > 0.3 && Math.abs(x) < 0.38 },
-  { muscle: 'rear_delts', center: [0.28, 1.2, -0.1], test: (x, y, z) => y > 1.1 && y < 1.4 && Math.abs(x) > 0.18 && Math.abs(x) < 0.36 && z < -0.03 },
-  { muscle: 'biceps', center: [-0.32, 0.98, 0.08], test: (x, y, z) => y > 0.82 && y < 1.15 && Math.abs(x) > 0.22 && Math.abs(x) < 0.38 && z > 0.02 },
-  { muscle: 'triceps', center: [-0.34, 0.98, -0.06], test: (x, y, z) => y > 0.82 && y < 1.15 && Math.abs(x) > 0.22 && Math.abs(x) < 0.38 && z < -0.01 },
-  { muscle: 'forearms', center: [-0.36, 0.65, 0.06], test: (x, y, _z) => y > 0.42 && y < 0.82 && Math.abs(x) > 0.24 },
-  { muscle: 'abs', center: [0, 0.78, 0.13], test: (x, y, z) => y > 0.6 && y < 0.9 && Math.abs(x) < 0.13 && z > 0.07 },
-  { muscle: 'lats', center: [-0.24, 0.88, -0.08], test: (x, y, z) => y > 0.68 && y < 1.12 && Math.abs(x) > 0.12 && Math.abs(x) < 0.3 && z < 0.01 },
-  { muscle: 'mid_back', center: [0, 0.98, -0.1], test: (x, y, z) => y > 0.82 && y < 1.2 && Math.abs(x) < 0.2 && z < -0.04 },
-  { muscle: 'lower_back', center: [0, 0.65, -0.1], test: (x, y, z) => y > 0.45 && y < 0.82 && Math.abs(x) < 0.2 && z < -0.03 },
-  { muscle: 'glutes', center: [0, 0.38, -0.1], test: (x, y, z) => y > 0.2 && y < 0.55 && Math.abs(x) < 0.2 && z < 0 },
-  { muscle: 'quads', center: [-0.12, -0.02, 0.1], test: (x, y, z) => y > -0.25 && y < 0.22 && Math.abs(x) < 0.18 && z > 0.03 },
-  { muscle: 'hamstrings', center: [0.12, -0.02, -0.08], test: (x, y, z) => y > -0.25 && y < 0.22 && Math.abs(x) < 0.18 && z < -0.01 },
-  { muscle: 'calves', center: [-0.12, -0.48, -0.06], test: (x, y, _z) => y < -0.22 && y > -0.85 && Math.abs(x) < 0.16 },
+  // Measured on body.glb (feet at y=0, head top at y=1.9, arms down by the sides; +z = front).
+  // Checked by colouring every vertex and rendering front and back views (2026-10-15).
+  { muscle: 'traps', center: [0, 1.53, -0.13], test: (x, y, z) => (y > 1.47 && y < 1.6 && Math.abs(x) < 0.19 && z < 0.06) || (y > 1.38 && y <= 1.47 && Math.abs(x) < 0.13 && z < -0.03) },
+  { muscle: 'side_delts', center: [-0.29, 1.41, -0.01], test: (x, y, z) => y > 1.3 && y < 1.52 && Math.abs(x) > 0.25 && Math.abs(z) < 0.035 },
+  { muscle: 'front_delts', center: [-0.21, 1.4, 0.06], test: (x, y, z) => y > 1.3 && y < 1.52 && Math.abs(x) > 0.17 && z >= 0 },
+  { muscle: 'rear_delts', center: [-0.23, 1.39, -0.13], test: (x, y, z) => y > 1.3 && y < 1.52 && Math.abs(x) > 0.17 && z < 0 },
+  { muscle: 'upper_chest', center: [0, 1.45, 0.11], test: (x, y, z) => y > 1.39 && y < 1.5 && Math.abs(x) < 0.17 && z > 0.02 },
+  { muscle: 'lower_chest', center: [0, 1.33, 0.12], test: (x, y, z) => y > 1.28 && y <= 1.39 && Math.abs(x) < 0.17 && z > 0.02 },
+  { muscle: 'biceps', center: [-0.26, 1.21, 0.03], test: (x, y, z) => y > 1.12 && y <= 1.3 && Math.abs(x) > 0.2 && z >= 0 },
+  { muscle: 'triceps', center: [-0.27, 1.21, -0.1], test: (x, y, z) => y > 1.12 && y <= 1.3 && Math.abs(x) > 0.2 && z < 0 },
+  { muscle: 'forearms', center: [-0.32, 0.99, 0.08], test: (x, y, _z) => y > 0.88 && y <= 1.12 && Math.abs(x) > 0.23 },
+  { muscle: 'abs', center: [0, 1.15, 0.12], test: (x, y, z) => y > 1.04 && y <= 1.28 && Math.abs(x) < 0.085 && z > 0.02 },
+  { muscle: 'obliques', center: [-0.12, 1.13, 0.08], test: (x, y, z) => y > 1.04 && y <= 1.28 && Math.abs(x) < 0.2 && z > -0.02 },
+  { muscle: 'mid_back', center: [0, 1.32, -0.17], test: (x, y, z) => y > 1.26 && y <= 1.38 && Math.abs(x) < 0.09 && z < -0.02 },
+  { muscle: 'lats', center: [-0.15, 1.26, -0.14], test: (x, y, z) => y > 1.1 && y <= 1.38 && Math.abs(x) >= 0.07 && Math.abs(x) < 0.2 && z < -0.02 },
+  { muscle: 'lower_back', center: [0, 1.11, -0.14], test: (x, y, z) => y > 1.03 && y <= 1.26 && Math.abs(x) < 0.1 && z < -0.02 },
+  { muscle: 'glutes', center: [0, 0.92, -0.14], test: (x, y, z) => y > 0.82 && y <= 1.03 && Math.abs(x) < 0.21 && z < -0.03 },
+  { muscle: 'adductors', center: [-0.03, 0.72, 0.03], test: (x, y, _z) => y > 0.58 && y <= 0.8 && Math.abs(x) < 0.075 },
+  { muscle: 'quads', center: [-0.12, 0.66, 0.11], test: (x, y, z) => y > 0.52 && y <= 0.82 && Math.abs(x) < 0.25 && z >= 0 },
+  { muscle: 'hamstrings', center: [-0.11, 0.68, -0.1], test: (x, y, z) => y > 0.52 && y <= 0.82 && Math.abs(x) < 0.25 && z < 0 },
+  { muscle: 'calves', center: [-0.15, 0.33, -0.11], test: (x, y, z) => y > 0.14 && y <= 0.52 && Math.abs(x) < 0.25 && z < -0.01 },
 ];
 
 function recoveryColorObj(value: number | null): Color {
@@ -200,7 +202,8 @@ function HeatmapScene({ muscleStates, selectedMuscle, onSelectMuscle }: Recovery
         colors.setXYZ(i, hairColor.r, hairColor.g, hairColor.b);
         continue;
       }
-      const isShorts = y > 0.8 && y < 1.06 && Math.abs(x) < 0.215;
+      // The shorts stay dark, except over the glutes at the back so glute recovery is visible.
+      const isShorts = y > 0.8 && y < 1.06 && Math.abs(x) < 0.215 && !(z < -0.03 && y > 0.82 && y <= 1.03);
       if (isShorts) {
         colors.setXYZ(i, shortsColor.r, shortsColor.g, shortsColor.b);
         continue;
