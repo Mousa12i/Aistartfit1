@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import type { RecoveryMuscle } from '@/lib/recovery/muscles';
 import { MUSCLE_LABELS } from '@/lib/recovery/muscles';
 import type { MuscleRecoveryState } from '@/lib/recovery/engine';
-import { fetchFullRecoveryData, type FullRecoveryData } from '@/lib/recovery/store';
+import { fetchFullRecoveryData, createSorenessLog, type FullRecoveryData } from '@/lib/recovery/store';
 import { buildDoctor, type DoctorExtras, type NextWorkout } from '@/lib/recovery/doctor/build';
 import { fetchDoctorExtras, fetchNextWorkout } from '@/lib/recovery/doctor/api';
 import { coachSnapshot, type RecoveryCoachLink } from '@/lib/recovery/doctor/coach-api';
@@ -21,6 +21,7 @@ import { CheckInCard } from '@/components/recovery/CheckInCard';
 import { Gate } from '@/components/recovery/Gate';
 import { useLiveRoutineMap } from '@/features/recovery/hooks/useLiveRoutineMap';
 import { RecoveryBodyModel } from '@/components/recovery/RecoveryBodyModel';
+import { MuscleReportPanel, SorenessLogger, latestSoreness } from '@/components/recovery/MuscleReportPanel';
 import { DecisionCard, DeloadCard, MorningCheckIn, SleepCard, ThisWeekCard, WeeklyReportCard } from './doctor/TodayPanels';
 import { TrendsPanel } from './doctor/TrendsPanel';
 import { CycleCard, FingerprintCard, WhatWorksCard } from './doctor/InsightsPanel';
@@ -209,8 +210,27 @@ export function Recovery({ onBack }: RecoveryProps) {
           <>
             <DecisionCard state={state} onCheckIn={() => setShowCheckIn(true)} onTriage={() => setTab('injury')} />
 
-            <section>
-              <RecoveryBodyModel muscleStates={muscleStates} selectedMuscle={selectedMuscle} onSelectMuscle={(m) => setSelectedMuscle(m)} />
+            <section className="space-y-3">
+              <div className="relative">
+                <RecoveryBodyModel muscleStates={muscleStates} selectedMuscle={selectedMuscle} onSelectMuscle={(m) => setSelectedMuscle(m)} />
+                {selectedMuscle && (
+                  <MuscleReportPanel
+                    muscle={selectedMuscle}
+                    state={stateByMuscle.get(selectedMuscle)}
+                    soreness={latestSoreness(data?.sorenessLogs ?? [], selectedMuscle)}
+                    plannedNext={state.nextWorkout?.muscles.includes(selectedMuscle) ?? false}
+                    nextWorkoutName={state.nextWorkout ? `${state.nextWorkout.planName} · ${state.nextWorkout.dayLabel}` : null}
+                    onClose={() => setSelectedMuscle(null)}
+                  />
+                )}
+              </div>
+              {selectedMuscle && (
+                <SorenessLogger
+                  muscle={selectedMuscle}
+                  current={latestSoreness(data?.sorenessLogs ?? [], selectedMuscle)?.soreness_score ?? null}
+                  onLog={(score) => { void createSorenessLog(selectedMuscle, score).then(() => loadData()); }}
+                />
+              )}
             </section>
 
             <section>
