@@ -11,13 +11,12 @@ import { cn } from '@/lib/utils';
 import type { RecoveryMuscle } from '@/lib/recovery/muscles';
 import { MUSCLE_LABELS } from '@/lib/recovery/muscles';
 import type { MuscleRecoveryState } from '@/lib/recovery/engine';
-import { fetchFullRecoveryData, createSorenessLog, type FullRecoveryData } from '@/lib/recovery/store';
+import { fetchFullRecoveryData, type FullRecoveryData } from '@/lib/recovery/store';
 import { buildDoctor, type DoctorExtras, type NextWorkout } from '@/lib/recovery/doctor/build';
 import { fetchDoctorExtras, fetchNextWorkout } from '@/lib/recovery/doctor/api';
 import { coachSnapshot, type RecoveryCoachLink } from '@/lib/recovery/doctor/coach-api';
 import { renderRecoveryPdf, recoveryPdfFilename, type RecoveryPdfKind } from '@/lib/recovery/doctor/pdf';
 import { downloadBlob } from '@/lib/nutrition/pdf';
-import { MuscleBottomSheet } from '@/components/recovery/MuscleBottomSheet';
 import { CheckInCard } from '@/components/recovery/CheckInCard';
 import { Gate } from '@/components/recovery/Gate';
 import { useLiveRoutineMap } from '@/features/recovery/hooks/useLiveRoutineMap';
@@ -134,7 +133,6 @@ export function Recovery({ onBack }: RecoveryProps) {
 
   const muscleStates = data?.muscleStates ?? [];
   const stateByMuscle = useMemo(() => new Map(muscleStates.map((s) => [s.muscle, s])), [muscleStates]);
-  const selectedState = selectedMuscle ? stateByMuscle.get(selectedMuscle) : null;
   const userName = (profile?.display_name || user?.email?.split('@')[0] || 'ATHLETE').toUpperCase();
   const totalMusclesWithData = DISPLAY_MUSCLES.filter((m) => stateByMuscle.get(m.muscle)?.recoveryPercent != null).length;
   const lowest = DISPLAY_MUSCLES
@@ -332,7 +330,6 @@ export function Recovery({ onBack }: RecoveryProps) {
       </main>
 
       {showCheckIn && state && <MorningCheckIn state={state} onClose={() => setShowCheckIn(false)} onSaved={() => { setShowCheckIn(false); void loadData(); }} />}
-      {selectedMuscle && selectedState && <MuscleBottomSheet muscle={selectedMuscle} state={selectedState} onClose={() => setSelectedMuscle(null)} onLogSoreness={async (muscle, score) => { await createSorenessLog(muscle, score); await loadData(); }} />}
       <StripeUpgradeModal open={showUpgrade} currentTier={tier} onClose={() => setShowUpgrade(false)} />
     </div>
   );
