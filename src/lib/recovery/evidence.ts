@@ -107,14 +107,16 @@ export function explainRecoveryPercent(muscle: RecoveryMuscle, hoursSince: numbe
   };
 }
 
-export function explainHoursNeeded(muscle: RecoveryMuscle, baseHours: number, modifiers: { rirExtra: number; volumeExtra: number; sorenessExtra: number; sleepMultiplier: number; personalMultiplier: number }): ExplanationSheet {
-  const total = (baseHours + modifiers.rirExtra + modifiers.volumeExtra + modifiers.sorenessExtra) * modifiers.sleepMultiplier * modifiers.personalMultiplier;
+export function explainHoursNeeded(muscle: RecoveryMuscle, baseHours: number, modifiers: { rirExtra: number; volumeExtra: number; sorenessExtra: number; noveltyExtra?: number; sleepMultiplier: number; stressMultiplier?: number; personalMultiplier: number }): ExplanationSheet {
+  const novelty = modifiers.noveltyExtra ?? 0;
+  const stress = modifiers.stressMultiplier ?? 1;
+  const total = (baseHours + modifiers.rirExtra + modifiers.volumeExtra + modifiers.sorenessExtra + novelty) * modifiers.sleepMultiplier * stress * modifiers.personalMultiplier;
   return {
     title: 'Recovery Time Estimate',
-    formula: `(${baseHours}h base + ${modifiers.rirExtra}h intensity + ${modifiers.volumeExtra}h volume + ${modifiers.sorenessExtra}h soreness) × ${modifiers.sleepMultiplier.toFixed(2)} sleep × ${modifiers.personalMultiplier.toFixed(2)} personal = ${total.toFixed(0)}h`,
+    formula: `(${baseHours}h base + ${modifiers.rirExtra}h intensity + ${modifiers.volumeExtra}h volume + ${modifiers.sorenessExtra}h soreness + ${novelty}h new exercise) × ${modifiers.sleepMultiplier.toFixed(2)} sleep × ${stress.toFixed(2)} stress × ${modifiers.personalMultiplier.toFixed(2)} personal = ${total.toFixed(0)}h`,
     sourceId: 'moran_navarro_2017',
     confidence: 'High',
-    notes: 'Sets with RIR <= 1 add up to +24h. High per-session volume adds time. Soreness >= 7 extends recovery. Average sleep < 6h over last 2 nights adds 15%.',
+    notes: 'Sets with RIR <= 1 add up to +24h. High per-session volume adds time. Soreness >= 7 extends recovery. An exercise new to you in the last 8 weeks adds 12h (not on top of high soreness). Average sleep < 6h over last 2 nights adds 15%. High stress in the last 2 days adds 10%.',
   };
 }
 

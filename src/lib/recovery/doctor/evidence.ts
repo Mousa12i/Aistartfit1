@@ -122,6 +122,91 @@ export const RECOVERY_REFERENCES: Record<string, Reference> = {
     citation: 'McNulty KL, Elliott-Sale KJ, Dolan E, et al. The effects of menstrual cycle phase on exercise performance in eumenorrheic women: a systematic review and meta-analysis. Sports Med. 2020;50(10):1813–1827.',
     url: doi('10.1007/s40279-020-01319-3'),
   },
+  // ---- added 2026-10-15: each checked against its abstract / record page ----
+  stultskolehmainen2014: {
+    id: 'stultskolehmainen2014',
+    short: 'Stults-Kolehmainen et al., 2014',
+    citation: 'Stults-Kolehmainen MA, Bartholomew JB, Sinha R. Chronic psychological stress impairs recovery of muscular function and somatic sensations over a 96-hour period. J Strength Cond Res. 2014;28(7):2007–2017.',
+    url: doi('10.1519/JSC.0000000000000335'),
+  },
+  nosaka2011: {
+    id: 'nosaka2011',
+    short: 'Nosaka & Aoki, 2011',
+    citation: 'Nosaka K, Aoki MS. Repeated bout effect: research update and future perspective. Brazilian Journal of Biomotricity. 2011;5(1):5–15.',
+    url: 'https://ro.ecu.edu.au/ecuworks2011/697',
+  },
+  wilson2012: {
+    id: 'wilson2012',
+    short: 'Wilson et al., 2012',
+    citation: 'Wilson JM, Marin PJ, Rhea MR, Wilson SMC, Loenneke JP, Anderson JC. Concurrent training: a meta-analysis examining interference of aerobic and resistance exercises. J Strength Cond Res. 2012;26(8):2293–2307.',
+    url: 'https://search.pedro.org.au/search-results/record-detail/34457',
+  },
+  drake2013: {
+    id: 'drake2013',
+    short: 'Drake et al., 2013',
+    citation: 'Drake C, et al. Study of 400 mg caffeine taken 0, 3 or 6 hours before bed (J Clin Sleep Med, 2013), as reported by the American Academy of Sleep Medicine.',
+    url: 'https://sleepeducation.org/late-afternoon-and-early-evening-caffeine-can-disrupt-sleep/',
+  },
+  cunha2023: {
+    id: 'cunha2023',
+    short: 'Sleep interventions review, 2023',
+    citation: 'The impact of sleep interventions on athletic performance: a systematic review. Sports Medicine – Open. 2023.',
+    url: 'https://doaj.org/article/5ee80b4fd72f4fa790b4324f051df07c',
+  },
+  schoenfeld2018meal: {
+    id: 'schoenfeld2018meal',
+    short: 'Schoenfeld & Aragon, 2018',
+    citation: 'Schoenfeld BJ, Aragon AA. How much protein can the body use in a single meal for muscle-building? Implications for daily protein distribution. J Int Soc Sports Nutr. 2018;15:10.',
+    url: doi('10.1186/s12970-018-0215-1'),
+  },
+  kerksick2017: {
+    id: 'kerksick2017',
+    short: 'Kerksick et al., 2017 (ISSN)',
+    citation: 'Kerksick CM, et al. International Society of Sports Nutrition position stand: nutrient timing. J Int Soc Sports Nutr. 2017.',
+    url: 'https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5596471/',
+  },
+  res2012: {
+    id: 'res2012',
+    short: 'Res et al., 2012',
+    citation: 'Res PT, Groen B, Pennings B, et al. Protein ingestion before sleep improves postexercise overnight recovery. Med Sci Sports Exerc. 2012;44(8):1560–1569.',
+    url: doi('10.1249/MSS.0b013e31824cc363'),
+  },
+  kreider2017: {
+    id: 'kreider2017',
+    short: 'Kreider et al., 2017 (ISSN)',
+    citation: 'Kreider RB, Kalman DS, Antonio J, et al. International Society of Sports Nutrition position stand: safety and efficacy of creatine supplementation in exercise, sport, and medicine. J Int Soc Sports Nutr. 2017;14.',
+    url: doi('10.1186/s12970-017-0173-z'),
+  },
+  hill2021: {
+    id: 'hill2021',
+    short: 'Hill et al., 2021',
+    citation: 'Hill JA, Keane KM, Quinlan R, Howatson G. Tart cherry supplementation and recovery from strenuous exercise: a systematic review and meta-analysis. Int J Sport Nutr Exerc Metab. 2021;31(2):154–167.',
+    url: doi('10.1123/ijsnem.2020-0145'),
+  },
+  lilja2018: {
+    id: 'lilja2018',
+    short: 'Lilja et al. (Karolinska), 2017',
+    citation: 'Lilja M, et al. Karolinska Institutet trial of high-dose ibuprofen (1,200 mg/day) vs low-dose aspirin (75 mg/day) during 8 weeks of resistance training, as reported by Karolinska Institutet.',
+    url: 'https://news.ki.se/anti-inflammatory-drugs-can-inhibit-muscle-growth',
+  },
+  parr2014: {
+    id: 'parr2014',
+    short: 'Parr et al., 2014',
+    citation: 'Parr EB, et al. Alcohol ingestion impairs maximal post-exercise rates of myofibrillar protein synthesis following a single bout of concurrent training. PLoS One. 2014;9(2):e88384.',
+    url: doi('10.1371/journal.pone.0088384'),
+  },
+  paulsen2014: {
+    id: 'paulsen2014',
+    short: 'Paulsen et al., 2014',
+    citation: 'Paulsen G, et al. Randomised, double-blind trial of vitamin C and E supplementation during 11 weeks of endurance training (J Physiol, 2014), as reported by The Physiological Society.',
+    url: 'https://www.physoc.org/?p=70729',
+  },
+  coleman2024: {
+    id: 'coleman2024',
+    short: 'Coleman et al., 2024',
+    citation: 'Coleman M, et al. Gaining more from doing less? The effects of a one-week deload period during supervised resistance training on muscular adaptations. PeerJ. 2024;12:e16777.',
+    url: doi('10.7717/peerj.16777'),
+  },
   // shared with the training and nutrition evidence lists (same verified records)
   knowles2018: TRAINING_REFERENCES.knowles2018,
   bell2023deload: TRAINING_REFERENCES.bell2023deload,
@@ -297,6 +382,98 @@ export const RECOVERY_CLAIMS: Record<string, RecoveryClaim> = Object.fromEntries
       'cycle_trivial',
       'A meta-analysis found that, on average, performance may be trivially lower in the early follicular phase (the first days of the period), but the evidence was low quality and the authors concluded that general guidelines cannot be formed; a personalised approach is recommended.',
       ['mcnulty2020'],
+    ),
+    // ---- added 2026-10-15: stress, new exercises, sleep, nutrition, what slows recovery ----
+    study(
+      'stress_recovery',
+      'In 31 students followed for 96 hours after a hard leg session, higher psychological stress was associated with slower recovery of maximal strength, energy, fatigue and soreness; the authors concluded that people under high stress may need longer to recover.',
+      ['stultskolehmainen2014'],
+    ),
+    design(
+      'stress_rule',
+      'StartFit rule: if a check-in from today or yesterday reports high stress (8–10 of 10, or "stressed"/"very stressed"), the recovery time is extended by 10%. The study shows the direction of the effect, not its size, so 10% is our cautious choice.',
+    ),
+    study(
+      'repeated_bout',
+      'After unaccustomed eccentric exercise, muscles are damaged more than when the same exercise is repeated later: the first bout protects against damage from the next one (the "repeated bout effect"), and the protection can last up to several months.',
+      ['nosaka2011'],
+    ),
+    design(
+      'novelty_rule',
+      'StartFit rule: if your last session for a muscle included an exercise that mainly trains it and that you had not done in the previous 8 weeks, 12 hours are added (not on top of the extra for high soreness). It only applies once you have 4 or more weeks of logged history, because before that we cannot know what is new to you.',
+    ),
+    study(
+      'concurrent_running',
+      'A meta-analysis of 21 studies found that combining strength training with running, but not cycling, reduced gains in muscle size and strength, and that more frequent and longer endurance sessions were linked with smaller strength, size and power gains.',
+      ['wilson2012'],
+    ),
+    study(
+      'sleep_extension_naps',
+      'A systematic review of 25 studies in athletes found that sleeping longer at night and napping were the most effective sleep interventions for performance; sleep hygiene advice alone, and removing electronic devices at night, showed no effect in the few studies available.',
+      ['cunha2023'],
+    ),
+    study(
+      'caffeine_6h',
+      'In 12 healthy sleepers, 400 mg of caffeine (about 2–3 cups of coffee) taken 6 hours before bed reduced measured total sleep by more than one hour, and people did not notice the disruption themselves.',
+      ['drake2013'],
+    ),
+    study(
+      'protein_per_meal',
+      'To maximise muscle building, a review recommended about 0.4 g of protein per kg of body weight per meal across at least four meals, reaching at least 1.6 g/kg/day, with 2.2 g/kg/day as an upper daily intake.',
+      ['schoenfeld2018meal'],
+    ),
+    study(
+      'post_exercise_protein',
+      'The ISSN position stand reports that 20–40 g of protein (0.25–0.40 g/kg per dose) every 3–4 hours most favourably affects muscle protein synthesis, that high-quality protein from right after exercise to 2 hours later stimulates it strongly, and that 30–40 g of casein before sleep raises muscle protein synthesis overnight.',
+      ['kerksick2017'],
+    ),
+    study(
+      'presleep_protein',
+      'In 16 young men who trained in the evening, 40 g of casein 30 minutes before sleep improved whole-body protein balance overnight; muscle protein synthesis was about 22% higher, a borderline-significant result.',
+      ['res2012'],
+    ),
+    study(
+      'fast_refuel',
+      'When there are less than 4 hours to recover before the next session, the ISSN recommends aggressive carbohydrate refeeding of about 1.2 g/kg per hour (or 0.8 g/kg/h with 0.2–0.4 g/kg/h of protein).',
+      ['kerksick2017'],
+    ),
+    study(
+      'creatine_recovery',
+      'The ISSN position stand states that creatine supplementation may improve recovery and help tolerate heavy training, and is safe and well tolerated in healthy people at the doses studied.',
+      ['kreider2017'],
+    ),
+    study(
+      'tart_cherry',
+      'A meta-analysis of 14 studies found tart cherry supplementation improved recovery of muscle strength (moderate effect) and slightly reduced soreness (small effect), with no effect on creatine kinase.',
+      ['hill2021'],
+    ),
+    study(
+      'nsaid_blunts',
+      'In young adults training their thighs for 8 weeks, a high daily dose of ibuprofen (1,200 mg) led to about half the muscle growth of a low dose of aspirin (75 mg), and also impaired strength gains.',
+      ['lilja2018'],
+    ),
+    study(
+      'alcohol_mps',
+      'In 8 active men, drinking a large amount of alcohol (1.5 g/kg, about 12 standard drinks) after training reduced muscle protein synthesis, even when protein was taken with it.',
+      ['parr2014'],
+    ),
+    study(
+      'antioxidant_blunts',
+      'In a randomised, double-blind trial of 54 people doing 11 weeks of endurance training, high-dose vitamin C (1,000 mg) and E (235 mg) blunted the rise in mitochondrial proteins, although maximal oxygen uptake and running test results were not affected.',
+      ['paulsen2014'],
+    ),
+    study(
+      'deload_full_stop',
+      'In a 9-week trial of 39 trained young adults, stopping resistance training for one week mid-programme gave similar muscle growth but somewhat smaller lower-body strength gains than training straight through (not conclusive); the authors suggest using full breaks sparingly when maximal strength is the goal.',
+      ['coleman2024'],
+    ),
+    design(
+      'tonight_rule',
+      'StartFit rule: tonight’s plan suggests enough time in bed for 7+ hours (more after a short night), no caffeine in the 6 hours before bed, and, on a training day, part of your remaining protein as a 30–40 g serving before sleep.',
+    ),
+    design(
+      'feedback_rule',
+      'StartFit rule: when you tell us a muscle feels ready while the estimate is under 70%, or still sore while it is 90% or more, that muscle’s personal multiplier moves 0.05 towards what you felt (kept between 0.7 and 1.4). It is a slow, bounded adjustment, not a measurement.',
     ),
     // ---- personal insights ----
     design(

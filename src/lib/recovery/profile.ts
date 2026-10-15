@@ -136,3 +136,41 @@ export function formatProfileDescription(multiplier: number): string {
   const pct = Math.round((1.0 - multiplier) * 100);
   return `Recovers about ${pct}% faster than the average model`;
 }
+
+export type FeelFeedback = 'ready' | 'still_sore';
+
+/**
+ * StartFit rule (claim feedback_rule): "feels ready" while the estimate is under 70%, or "still sore" while it is
+ * 90% or more, moves the muscle's personal multiplier 0.05 towards what was felt, kept within 0.7–1.4.
+ * Returns null when the feeling matches the estimate (no change).
+ */
+export function feedbackMultiplier(recoveryPercent: number, feel: FeelFeedback, current: number): number | null {
+  const step = 0.05;
+  let next: number | null = null;
+  if (feel === 'ready' && recoveryPercent < 70) next = current - step;
+  else if (feel === 'still_sore' && recoveryPercent >= 90) next = current + step;
+  if (next == null) return null;
+  next = Math.round(Math.max(0.7, Math.min(1.4, next)) * 100) / 100;
+  return next === Math.round(current * 100) / 100 ? null : next;
+}
+
+/** Saves a feedback-based multiplier for the signed-in user (one row per muscle). */
+export async function saveRecoveryFeedback(muscle: RecoveryMuscle, multiplier: number, sampleSize: number): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth.user?.id;
+  if (!userId) throw new Error('Please sign in again.');
+  const n = sampleSize + 1;
+  const { error } = await supabase.from('recovery_profile').upsert(
+    {
+      user_id: userId,
+      muscle,
+      personal_multiplier: multiplier,
+      sample_size: n,
+      confidence: n >= 10 ? 'High' : n >= 5 ? 'Moderate' : 'Low',
+      manually_overridden: false,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,muscle' },
+  );
+  if (error) throw error;
+}

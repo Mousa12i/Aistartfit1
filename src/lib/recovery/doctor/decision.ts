@@ -203,5 +203,5 @@ export function detectDeload(input: DeloadInput): DeloadAdvice {
     { id: 'time', met: weeksSince >= 6 && input.activeWeeks >= 5, text: `${weeksSince} weeks since your last lighter week or start` },
   ];
   const metCount = signals.filter((s) => s.met).length;
-  return { suggest: metCount >= 2, metCount, signals, claimIds: ['deload_rule', 'deload_concept', 'ots_consensus'] };
+  return { suggest: metCount >= 2, metCount, signals, claimIds: ['deload_rule', 'deload_concept', 'deload_full_stop', 'ots_consensus'] };
 }

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import type { RecoveryMuscle } from '@/lib/recovery/muscles';
 import { MUSCLE_LABELS } from '@/lib/recovery/muscles';
 import type { MuscleRecoveryState } from '@/lib/recovery/engine';
-import { fetchFullRecoveryData, createSorenessLog, type FullRecoveryData } from '@/lib/recovery/store';
+import { fetchFullRecoveryData, createSorenessLog, localDateKey, type FullRecoveryData } from '@/lib/recovery/store';
 import { buildDoctor, type DoctorExtras, type NextWorkout } from '@/lib/recovery/doctor/build';
 import { fetchDoctorExtras, fetchNextWorkout } from '@/lib/recovery/doctor/api';
 import { coachSnapshot, type RecoveryCoachLink } from '@/lib/recovery/doctor/coach-api';
@@ -21,7 +21,7 @@ import { CheckInCard } from '@/components/recovery/CheckInCard';
 import { Gate } from '@/components/recovery/Gate';
 import { useLiveRoutineMap } from '@/features/recovery/hooks/useLiveRoutineMap';
 import { RecoveryBodyModel } from '@/components/recovery/RecoveryBodyModel';
-import { MuscleReportPanel, SorenessLogger, latestSoreness } from '@/components/recovery/MuscleReportPanel';
+import { MuscleReportPanel, RecoveryFeedback, SorenessLogger, latestSoreness } from '@/components/recovery/MuscleReportPanel';
 import { DecisionCard, DeloadCard, MorningCheckIn, SleepCard, ThisWeekCard, WeeklyReportCard } from './doctor/TodayPanels';
 import { TrendsPanel } from './doctor/TrendsPanel';
 import { CycleCard, FingerprintCard, WhatWorksCard } from './doctor/InsightsPanel';
@@ -30,6 +30,7 @@ import { InjuryPanel } from './doctor/InjuryPanel';
 import { RecoveryCoachChat } from './doctor/RecoveryCoachChat';
 import { AiConsentGate } from '@/components/privacy/AiConsentGate';
 import { RecoverySources } from './doctor/ui';
+import { CoachNoteCard, TonightCard } from './doctor/CoachCards';
 
 interface RecoveryProps {
   onBack: () => void;
@@ -133,6 +134,13 @@ export function Recovery({ onBack }: RecoveryProps) {
   );
 
   const muscleStates = data?.muscleStates ?? [];
+  const todayKeyLocal = localDateKey(new Date());
+  const sleepLastNight = data?.sleepHistory.find((e) => e.date === todayKeyLocal)?.sleepHours ?? null;
+  const trainedToday = (data?.sessions ?? []).some((s) => localDateKey(new Date(s.completed_at)) === todayKeyLocal);
+  const coachNextWorkout = useMemo(
+    () => (state?.nextWorkout ? { name: `${state.nextWorkout.planName} · ${state.nextWorkout.dayLabel}`, muscles: state.nextWorkout.muscles } : null),
+    [state?.nextWorkout],
+  );
   const stateByMuscle = useMemo(() => new Map(muscleStates.map((s) => [s.muscle, s])), [muscleStates]);
   const userName = (profile?.display_name || user?.email?.split('@')[0] || 'ATHLETE').toUpperCase();
   const totalMusclesWithData = DISPLAY_MUSCLES.filter((m) => stateByMuscle.get(m.muscle)?.recoveryPercent != null).length;
@@ -208,6 +216,7 @@ export function Recovery({ onBack }: RecoveryProps) {
 
         {tab === 'today' && state && (
           <>
+            <CoachNoteCard muscles={muscleStates} sleepLastNight={sleepLastNight} nextWorkout={coachNextWorkout} onAsk={() => setTab('coach')} />
             <DecisionCard state={state} onCheckIn={() => setShowCheckIn(true)} onTriage={() => setTab('injury')} />
 
             <section className="space-y-3">
@@ -229,6 +238,16 @@ export function Recovery({ onBack }: RecoveryProps) {
                   muscle={selectedMuscle}
                   current={latestSoreness(data?.sorenessLogs ?? [], selectedMuscle)?.soreness_score ?? null}
                   onLog={(score) => { void createSorenessLog(selectedMuscle, score).then(() => loadData()); }}
+                />
+              )}
+              {selectedMuscle && (
+                <RecoveryFeedback
+                  key={selectedMuscle}
+                  muscle={selectedMuscle}
+                  state={stateByMuscle.get(selectedMuscle)}
+                  currentMultiplier={data?.recoveryProfile.find((p) => p.muscle === selectedMuscle)?.personal_multiplier ?? 1}
+                  sampleSize={data?.recoveryProfile.find((p) => p.muscle === selectedMuscle)?.sample_size ?? 0}
+                  onSaved={() => void loadData()}
                 />
               )}
             </section>
@@ -282,6 +301,7 @@ export function Recovery({ onBack }: RecoveryProps) {
 
             <ThisWeekCard state={state} onRated={() => void loadData()} />
             <SleepCard state={state} />
+            <TonightCard sleepLastNight={sleepLastNight} trainedToday={trainedToday} />
             <section className="rounded-2xl border border-[#243442] bg-[#0d1820] p-4">
               <button type="button" aria-label="Open recovery check-in" aria-expanded={showDetails} onClick={() => setShowDetails((v) => !v)} className="flex w-full items-center justify-between text-left">
                 <span>

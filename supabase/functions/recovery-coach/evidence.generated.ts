@@ -310,6 +310,195 @@ export const COACH_CLAIMS: CoachClaim[] = [
     ]
   },
   {
+    "id": "stress_recovery",
+    "kind": "study",
+    "text": "In 31 students followed for 96 hours after a hard leg session, higher psychological stress was associated with slower recovery of maximal strength, energy, fatigue and soreness; the authors concluded that people under high stress may need longer to recover.",
+    "refs": [
+      {
+        "short": "Stults-Kolehmainen et al., 2014",
+        "url": "https://doi.org/10.1519/JSC.0000000000000335"
+      }
+    ]
+  },
+  {
+    "id": "stress_rule",
+    "kind": "design",
+    "text": "StartFit rule: if a check-in from today or yesterday reports high stress (8–10 of 10, or \"stressed\"/\"very stressed\"), the recovery time is extended by 10%. The study shows the direction of the effect, not its size, so 10% is our cautious choice.",
+    "refs": []
+  },
+  {
+    "id": "repeated_bout",
+    "kind": "study",
+    "text": "After unaccustomed eccentric exercise, muscles are damaged more than when the same exercise is repeated later: the first bout protects against damage from the next one (the \"repeated bout effect\"), and the protection can last up to several months.",
+    "refs": [
+      {
+        "short": "Nosaka & Aoki, 2011",
+        "url": "https://ro.ecu.edu.au/ecuworks2011/697"
+      }
+    ]
+  },
+  {
+    "id": "novelty_rule",
+    "kind": "design",
+    "text": "StartFit rule: if your last session for a muscle included an exercise that mainly trains it and that you had not done in the previous 8 weeks, 12 hours are added (not on top of the extra for high soreness). It only applies once you have 4 or more weeks of logged history, because before that we cannot know what is new to you.",
+    "refs": []
+  },
+  {
+    "id": "concurrent_running",
+    "kind": "study",
+    "text": "A meta-analysis of 21 studies found that combining strength training with running, but not cycling, reduced gains in muscle size and strength, and that more frequent and longer endurance sessions were linked with smaller strength, size and power gains.",
+    "refs": [
+      {
+        "short": "Wilson et al., 2012",
+        "url": "https://search.pedro.org.au/search-results/record-detail/34457"
+      }
+    ]
+  },
+  {
+    "id": "sleep_extension_naps",
+    "kind": "study",
+    "text": "A systematic review of 25 studies in athletes found that sleeping longer at night and napping were the most effective sleep interventions for performance; sleep hygiene advice alone, and removing electronic devices at night, showed no effect in the few studies available.",
+    "refs": [
+      {
+        "short": "Sleep interventions review, 2023",
+        "url": "https://doaj.org/article/5ee80b4fd72f4fa790b4324f051df07c"
+      }
+    ]
+  },
+  {
+    "id": "caffeine_6h",
+    "kind": "study",
+    "text": "In 12 healthy sleepers, 400 mg of caffeine (about 2–3 cups of coffee) taken 6 hours before bed reduced measured total sleep by more than one hour, and people did not notice the disruption themselves.",
+    "refs": [
+      {
+        "short": "Drake et al., 2013",
+        "url": "https://sleepeducation.org/late-afternoon-and-early-evening-caffeine-can-disrupt-sleep/"
+      }
+    ]
+  },
+  {
+    "id": "protein_per_meal",
+    "kind": "study",
+    "text": "To maximise muscle building, a review recommended about 0.4 g of protein per kg of body weight per meal across at least four meals, reaching at least 1.6 g/kg/day, with 2.2 g/kg/day as an upper daily intake.",
+    "refs": [
+      {
+        "short": "Schoenfeld & Aragon, 2018",
+        "url": "https://doi.org/10.1186/s12970-018-0215-1"
+      }
+    ]
+  },
+  {
+    "id": "post_exercise_protein",
+    "kind": "study",
+    "text": "The ISSN position stand reports that 20–40 g of protein (0.25–0.40 g/kg per dose) every 3–4 hours most favourably affects muscle protein synthesis, that high-quality protein from right after exercise to 2 hours later stimulates it strongly, and that 30–40 g of casein before sleep raises muscle protein synthesis overnight.",
+    "refs": [
+      {
+        "short": "Kerksick et al., 2017 (ISSN)",
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5596471/"
+      }
+    ]
+  },
+  {
+    "id": "presleep_protein",
+    "kind": "study",
+    "text": "In 16 young men who trained in the evening, 40 g of casein 30 minutes before sleep improved whole-body protein balance overnight; muscle protein synthesis was about 22% higher, a borderline-significant result.",
+    "refs": [
+      {
+        "short": "Res et al., 2012",
+        "url": "https://doi.org/10.1249/MSS.0b013e31824cc363"
+      }
+    ]
+  },
+  {
+    "id": "fast_refuel",
+    "kind": "study",
+    "text": "When there are less than 4 hours to recover before the next session, the ISSN recommends aggressive carbohydrate refeeding of about 1.2 g/kg per hour (or 0.8 g/kg/h with 0.2–0.4 g/kg/h of protein).",
+    "refs": [
+      {
+        "short": "Kerksick et al., 2017 (ISSN)",
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5596471/"
+      }
+    ]
+  },
+  {
+    "id": "creatine_recovery",
+    "kind": "study",
+    "text": "The ISSN position stand states that creatine supplementation may improve recovery and help tolerate heavy training, and is safe and well tolerated in healthy people at the doses studied.",
+    "refs": [
+      {
+        "short": "Kreider et al., 2017 (ISSN)",
+        "url": "https://doi.org/10.1186/s12970-017-0173-z"
+      }
+    ]
+  },
+  {
+    "id": "tart_cherry",
+    "kind": "study",
+    "text": "A meta-analysis of 14 studies found tart cherry supplementation improved recovery of muscle strength (moderate effect) and slightly reduced soreness (small effect), with no effect on creatine kinase.",
+    "refs": [
+      {
+        "short": "Hill et al., 2021",
+        "url": "https://doi.org/10.1123/ijsnem.2020-0145"
+      }
+    ]
+  },
+  {
+    "id": "nsaid_blunts",
+    "kind": "study",
+    "text": "In young adults training their thighs for 8 weeks, a high daily dose of ibuprofen (1,200 mg) led to about half the muscle growth of a low dose of aspirin (75 mg), and also impaired strength gains.",
+    "refs": [
+      {
+        "short": "Lilja et al. (Karolinska), 2017",
+        "url": "https://news.ki.se/anti-inflammatory-drugs-can-inhibit-muscle-growth"
+      }
+    ]
+  },
+  {
+    "id": "alcohol_mps",
+    "kind": "study",
+    "text": "In 8 active men, drinking a large amount of alcohol (1.5 g/kg, about 12 standard drinks) after training reduced muscle protein synthesis, even when protein was taken with it.",
+    "refs": [
+      {
+        "short": "Parr et al., 2014",
+        "url": "https://doi.org/10.1371/journal.pone.0088384"
+      }
+    ]
+  },
+  {
+    "id": "antioxidant_blunts",
+    "kind": "study",
+    "text": "In a randomised, double-blind trial of 54 people doing 11 weeks of endurance training, high-dose vitamin C (1,000 mg) and E (235 mg) blunted the rise in mitochondrial proteins, although maximal oxygen uptake and running test results were not affected.",
+    "refs": [
+      {
+        "short": "Paulsen et al., 2014",
+        "url": "https://www.physoc.org/?p=70729"
+      }
+    ]
+  },
+  {
+    "id": "deload_full_stop",
+    "kind": "study",
+    "text": "In a 9-week trial of 39 trained young adults, stopping resistance training for one week mid-programme gave similar muscle growth but somewhat smaller lower-body strength gains than training straight through (not conclusive); the authors suggest using full breaks sparingly when maximal strength is the goal.",
+    "refs": [
+      {
+        "short": "Coleman et al., 2024",
+        "url": "https://doi.org/10.7717/peerj.16777"
+      }
+    ]
+  },
+  {
+    "id": "tonight_rule",
+    "kind": "design",
+    "text": "StartFit rule: tonight’s plan suggests enough time in bed for 7+ hours (more after a short night), no caffeine in the 6 hours before bed, and, on a training day, part of your remaining protein as a 30–40 g serving before sleep.",
+    "refs": []
+  },
+  {
+    "id": "feedback_rule",
+    "kind": "design",
+    "text": "StartFit rule: when you tell us a muscle feels ready while the estimate is under 70%, or still sore while it is 90% or more, that muscle’s personal multiplier moves 0.05 towards what you felt (kept between 0.7 and 1.4). It is a slow, bounded adjustment, not a measurement.",
+    "refs": []
+  },
+  {
     "id": "nof1_rule",
     "kind": "design",
     "text": "StartFit rule: \"what works for you\" compares your own days (for example after 7+ hours of sleep vs less). A comparison is shown only when each side has at least 5 days, and only called a pattern when the difference is at least half of your usual day-to-day spread. These are observations from your data, not proof of cause.",

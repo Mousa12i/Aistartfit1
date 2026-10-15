@@ -70,11 +70,17 @@ export interface MuscleRecoveryState {
   sessionEffectiveSets: number;
   hasSessionVolumeWarning: boolean;
   personalMultiplier: number;
+  /** Exercises in the last session for this muscle that were not done in the 8 weeks before it. */
+  newExercises: string[];
   modifiers: {
     rirExtra: number;
     volumeExtra: number;
     sorenessExtra: number;
+    /** Extra hours when the last session had an exercise new to you (repeated bout effect). */
+    noveltyExtra: number;
     sleepMultiplier: number;
+    /** 1.10 when you reported high stress in the last 2 days, else 1. */
+    stressMultiplier: number;
     personalMultiplier: number;
   };
 }
@@ -97,14 +103,41 @@ export interface RecoveryInput {
   sleep: SleepEntry[];
   personalMultipliers: Record<string, number>;
   now: Date;
+  /** True when a check-in in the last 2 days reported high stress (StartFit rule: stress 8–10 of 10, or "stressed"/"very stressed"). */
+  highStress?: boolean;
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** StartFit rules (see evidence: stress_recovery, novelty_rule). */
+export const STRESS_MULTIPLIER = 1.1;
+export const NOVELTY_EXTRA_HOURS = 12;
+export const NOVELTY_LOOKBACK_DAYS = 56;
+/** History needed before the session to call an exercise "new" (otherwise we cannot know). */
+export const NOVELTY_MIN_HISTORY_DAYS = 28;
 
 export function computeMuscleRecovery(input: RecoveryInput): MuscleRecoveryState[] {
   const { setLogs, exerciseMappings, soreness, sleep, personalMultipliers, now } = input;
+  const stressMultiplier = input.highStress ? STRESS_MULTIPLIER : 1.0;
 
   const sevenDaysAgo = now.getTime() - WEEK_MS;
+
+  // When each exercise was done (session times), for the "new exercise" check.
+  const exerciseTimes = new Map<string, number[]>();
+  const exerciseNames = new Map<string, string>();
+  let earliestLog: number | null = null;
+  for (const log of setLogs) {
+    if (!log.completed || !log.session_completed_at || log.set_type === 'warm_up') continue;
+    const t = new Date(log.session_completed_at).getTime();
+    if (!Number.isFinite(t) || t > now.getTime()) continue;
+    const list = exerciseTimes.get(log.exercise_id) ?? [];
+    list.push(t);
+    exerciseTimes.set(log.exercise_id, list);
+    exerciseNames.set(log.exercise_id, log.exercise_name);
+    if (earliestLog == null || t < earliestLog) earliestLog = t;
+  }
+  const sessionExercises = new Map<string, { at: number; exercises: Set<string> }>();
 
   // Group sets by muscle — only working sets (exclude warm_up), only completed
   const muscleSets: Record<string, {
@@ -125,6 +158,9 @@ export function computeMuscleRecovery(input: RecoveryInput): MuscleRecoveryState
     const sessionDate = new Date(log.session_completed_at).getTime();
     if (!Number.isFinite(sessionDate) || sessionDate > now.getTime()) continue;
     const sessionId = log.session_id;
+    const se = sessionExercises.get(sessionId) ?? { at: sessionDate, exercises: new Set<string>() };
+    se.exercises.add(log.exercise_id);
+    sessionExercises.set(sessionId, se);
 
     for (const mc of mapping.muscles) {
       if (!muscleSets[mc.muscle]) {
@@ -196,7 +232,8 @@ export function computeMuscleRecovery(input: RecoveryInput): MuscleRecoveryState
         sessionEffectiveSets,
         hasSessionVolumeWarning,
         personalMultiplier,
-        modifiers: { rirExtra: 0, volumeExtra: 0, sorenessExtra: 0, sleepMultiplier, personalMultiplier },
+        newExercises: [],
+        modifiers: { rirExtra: 0, volumeExtra: 0, sorenessExtra: 0, noveltyExtra: 0, sleepMultiplier, stressMultiplier, personalMultiplier },
       };
     }
 
@@ -224,7 +261,23 @@ export function computeMuscleRecovery(input: RecoveryInput): MuscleRecoveryState
       sorenessExtra = 12;
     }
 
-    const hoursNeeded = (baseHours + rirExtra + volumeExtra + sorenessExtra) * sleepMultiplier * personalMultiplier;
+    // New-exercise modifier: an exercise that mainly trains this muscle and was not done in the 8 weeks before
+    // the last session. Only when there are 4+ weeks of history before that session, and not on top of the
+    // high-soreness extra (both describe the same extra damage).
+    const newExercises: string[] = [];
+    const last = data.lastSessionId ? sessionExercises.get(data.lastSessionId) : undefined;
+    if (last && earliestLog != null && last.at - earliestLog >= NOVELTY_MIN_HISTORY_DAYS * DAY_MS) {
+      for (const exId of last.exercises) {
+        const main = exerciseMappings.get(exId)?.muscles.some((mc) => mc.muscle === muscle && mc.contribution >= 1);
+        if (!main) continue;
+        const times = exerciseTimes.get(exId) ?? [];
+        const doneBefore = times.some((t) => t < last.at - 60 * 60 * 1000 && t >= last.at - NOVELTY_LOOKBACK_DAYS * DAY_MS);
+        if (!doneBefore) newExercises.push(exerciseNames.get(exId) ?? exId);
+      }
+    }
+    const noveltyExtra = newExercises.length > 0 && sorenessExtra === 0 ? NOVELTY_EXTRA_HOURS : 0;
+
+    const hoursNeeded = (baseHours + rirExtra + volumeExtra + sorenessExtra + noveltyExtra) * sleepMultiplier * stressMultiplier * personalMultiplier;
     const recoveryPercent = Math.max(0, Math.min(100, (hoursSince / hoursNeeded) * 100));
 
     const status: MuscleRecoveryState['status'] =
@@ -243,7 +296,8 @@ export function computeMuscleRecovery(input: RecoveryInput): MuscleRecoveryState
       sessionEffectiveSets,
       hasSessionVolumeWarning,
       personalMultiplier,
-      modifiers: { rirExtra, volumeExtra, sorenessExtra, sleepMultiplier, personalMultiplier },
+      newExercises,
+      modifiers: { rirExtra, volumeExtra, sorenessExtra, noveltyExtra, sleepMultiplier, stressMultiplier, personalMultiplier },
     };
   });
 }

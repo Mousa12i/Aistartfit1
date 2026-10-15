@@ -399,6 +399,7 @@ export async function fetchFullRecoveryData(now = new Date()): Promise<FullRecov
     sleep: sleepEntries,
     personalMultipliers,
     now,
+    highStress: hasRecentHighStress(checkins, now),
   });
 
   const todayKey = localDateKey(now);
@@ -454,6 +455,17 @@ export async function fetchFullRecoveryData(now = new Date()): Promise<FullRecov
     exerciseMappings,
     exercises,
   };
+}
+
+/** StartFit rule: high stress = stress 8–10 (of 10) or "stressed"/"very stressed" in a check-in from today or yesterday. */
+export function hasRecentHighStress(checkins: Pick<DailyCheckin, 'checkin_date' | 'stress' | 'wellness_stress'>[], now: Date): boolean {
+  const today = localDateKey(now);
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  const yesterday = localDateKey(y);
+  return checkins.some(
+    (c) => (c.checkin_date === today || c.checkin_date === yesterday) && ((c.stress != null && c.stress >= 8) || (c.wellness_stress != null && c.wellness_stress <= 2)),
+  );
 }
 
 export function localDateKey(d: Date): string {

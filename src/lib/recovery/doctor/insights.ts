@@ -8,7 +8,7 @@ import { wellnessScore, wellnessBaseline, type WellnessEntry } from './wellness'
 import { sessionLoad, weekLoad, weeklySeries, loadChange, typicalWeeklyLoad, type LoadSession } from './load';
 import { sessionBests, sleepSummary, type PerfSet } from './trends';
 import { isPeriodDay } from './cycle';
-import { MODALITIES } from './modalities';
+import { MODALITIES, isLoggable } from './modalities';
 
 export const NOF1_MIN = 5;
 
@@ -113,7 +113,7 @@ export function whatWorks(input: InsightInput, days = 120): Comparison[] {
     set.add(l.modality);
     methodsByDate.set(l.date, set);
   }
-  for (const m of MODALITIES.filter((x) => !['sleep', 'protein'].includes(x.id))) {
+  for (const m of MODALITIES.filter(isLoggable)) {
     const a: number[] = [];
     const b: number[] = [];
     for (const d of trainingDays) {

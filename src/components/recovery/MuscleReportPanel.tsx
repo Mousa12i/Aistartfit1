@@ -1,6 +1,9 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, X } from 'lucide-react';
 import type { MuscleRecoveryState } from '@/lib/recovery/engine';
-import { MUSCLE_LABELS, type RecoveryMuscle } from '@/lib/recovery/muscles';
+import { BASE_RECOVERY_HOURS, MUSCLE_LABELS, type RecoveryMuscle } from '@/lib/recovery/muscles';
+import { feedbackMultiplier, saveRecoveryFeedback, type FeelFeedback } from '@/lib/recovery/profile';
+import { RecoverySources } from '@/screens/recovery/doctor/ui';
 import type { SorenessLog } from '@/lib/recovery/store';
 import { cn } from '@/lib/utils';
 
@@ -62,6 +65,7 @@ export function MuscleReportPanel({
       ? Math.max(0, Math.ceil(state.hoursNeeded - state.hoursSinceLastTrained))
       : null;
   const c = color(pct);
+  const [showWhy, setShowWhy] = useState(false);
   const sorenessScore = soreness?.soreness_score ?? null;
   const sorenessRecent = soreness ? Date.now() - new Date(soreness.recorded_at).getTime() < 72 * 3_600_000 : false;
 
@@ -75,7 +79,7 @@ export function MuscleReportPanel({
 
   return (
     <div
-      className="absolute right-2 top-16 z-10 w-[min(15rem,calc(100%-1rem))] rounded-2xl border border-white/10 bg-[#0b141b]/90 p-3 text-left shadow-xl backdrop-blur-md"
+      className="absolute right-2 top-16 z-10 max-h-[calc(100%-5rem)] w-[min(15rem,calc(100%-1rem))] overflow-y-auto rounded-2xl border border-white/10 bg-[#0b141b]/90 p-3 text-left shadow-xl backdrop-blur-md"
       data-testid="muscle-report"
       role="dialog"
       aria-label={`${MUSCLE_LABELS[muscle]} report`}
@@ -109,14 +113,112 @@ export function MuscleReportPanel({
           warn={sorenessRecent && (sorenessScore ?? 0) >= 6}
         />
         {state && state.modifiers.sleepMultiplier > 1.01 && <Row label="Short sleep" value={`+${Math.round((state.modifiers.sleepMultiplier - 1) * 100)}% time`} warn />}
+        {state && state.modifiers.stressMultiplier > 1.01 && <Row label="High stress" value={`+${Math.round((state.modifiers.stressMultiplier - 1) * 100)}% time`} warn />}
+        {state && state.newExercises.length > 0 && <Row label="New to you" value={state.newExercises.slice(0, 2).join(', ')} warn />}
         {plannedNext && <Row label="Next workout" value="Trains this muscle" />}
       </dl>
+
+      {state && state.status !== 'no_data' && (
+        <div className="mt-2">
+          <button type="button" onClick={() => setShowWhy((v) => !v)} aria-expanded={showWhy} className="flex w-full items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[#8ad8f3]" data-testid="why-number">
+            Why this number?
+            <ChevronDown className={cn('h-3 w-3 transition-transform', showWhy && 'rotate-180')} />
+          </button>
+          {showWhy && <WhyBreakdown muscle={muscle} state={state} />}
+        </div>
+      )}
 
       <div className="mt-2.5 border-t border-white/10 pt-2">
         <p className="text-[10px] font-bold uppercase tracking-wider text-cloud-dim">Action</p>
         <p className="mt-0.5 text-[11px] leading-snug text-cloud">{action}</p>
       </div>
       <p className="mt-1.5 text-[9px] text-cloud-dim/70">Estimate from your logs, not a measurement.</p>
+    </div>
+  );
+}
+
+function WhyBreakdown({ muscle, state }: { muscle: RecoveryMuscle; state: MuscleRecoveryState }) {
+  const m = state.modifiers;
+  const base = BASE_RECOVERY_HOURS[muscle];
+  const lines: { label: string; value: string }[] = [{ label: 'Starting point', value: `${base}h` }];
+  if (m.rirExtra > 0) lines.push({ label: 'Sets to failure', value: `+${m.rirExtra}h` });
+  if (m.volumeExtra > 0) lines.push({ label: 'High volume', value: `+${m.volumeExtra}h` });
+  if (m.sorenessExtra > 0) lines.push({ label: 'High soreness', value: `+${m.sorenessExtra}h` });
+  if (m.noveltyExtra > 0) lines.push({ label: 'New exercise', value: `+${m.noveltyExtra}h` });
+  if (m.sleepMultiplier > 1.01) lines.push({ label: 'Short sleep', value: `×${m.sleepMultiplier.toFixed(2)}` });
+  if (m.stressMultiplier > 1.01) lines.push({ label: 'High stress', value: `×${m.stressMultiplier.toFixed(2)}` });
+  if (Math.abs(m.personalMultiplier - 1) > 0.001) lines.push({ label: 'Your personal rate', value: `×${m.personalMultiplier.toFixed(2)}` });
+  const claimIds = ['recovery_estimate'];
+  if (m.rirExtra > 0) claimIds.push('failure_recovery');
+  if (m.noveltyExtra > 0 || state.newExercises.length > 0) claimIds.push('repeated_bout', 'novelty_rule');
+  if (m.sleepMultiplier > 1.01) claimIds.push('sleep_strength');
+  if (m.stressMultiplier > 1.01) claimIds.push('stress_recovery', 'stress_rule');
+  if (Math.abs(m.personalMultiplier - 1) > 0.001) claimIds.push('feedback_rule');
+  return (
+    <div className="mt-1.5 rounded-lg bg-black/25 p-2" data-testid="why-breakdown">
+      <dl className="space-y-0.5 text-[10.5px]">
+        {lines.map((l) => (
+          <div key={l.label} className="flex justify-between gap-2">
+            <dt className="text-cloud-dim">{l.label}</dt>
+            <dd className="font-semibold tabular-nums text-cloud">{l.value}</dd>
+          </div>
+        ))}
+        <div className="mt-1 flex justify-between gap-2 border-t border-white/10 pt-1">
+          <dt className="font-bold text-cloud">Time needed</dt>
+          <dd className="font-black tabular-nums text-white">{Math.round(state.hoursNeeded)}h</dd>
+        </div>
+      </dl>
+      <RecoverySources claimIds={claimIds} className="mt-1.5" />
+    </div>
+  );
+}
+
+/** "Feels ready" / "still sore": a slow, bounded correction of this muscle's personal rate (claim feedback_rule). */
+export function RecoveryFeedback({
+  muscle,
+  state,
+  currentMultiplier,
+  sampleSize,
+  onSaved,
+}: {
+  muscle: RecoveryMuscle;
+  state: MuscleRecoveryState | undefined;
+  currentMultiplier: number;
+  sampleSize: number;
+  onSaved: () => void;
+}) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!state || state.recoveryPercent == null) return null;
+  const pct = state.recoveryPercent;
+
+  const send = async (feel: FeelFeedback) => {
+    const next = feedbackMultiplier(pct, feel, currentMultiplier);
+    if (next == null) {
+      setMessage(feel === 'ready' ? 'Thanks: that matches the estimate, nothing to change.' : 'Thanks: that fits the estimate, so we keep it as it is.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveRecoveryFeedback(muscle, next, sampleSize);
+      setMessage(next < currentMultiplier ? 'Noted: we will expect this muscle to recover a little faster.' : 'Noted: we will give this muscle a little more time.');
+      onSaved();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Could not save.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-[#183744] bg-[#0d1820] p-3" data-testid="recovery-feedback">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-cloud-dim">Does the {Math.round(pct)}% match how it feels?</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button type="button" disabled={busy} onClick={() => void send('ready')} className="rounded-lg bg-ink-elevated py-2 text-xs font-bold text-cloud disabled:opacity-50">Feels ready</button>
+        <button type="button" disabled={busy} onClick={() => void send('still_sore')} className="rounded-lg bg-ink-elevated py-2 text-xs font-bold text-cloud disabled:opacity-50">Still sore</button>
+      </div>
+      {message && <p className="mt-2 text-[11px] text-cloud">{message}</p>}
+      <RecoverySources claimIds={['feedback_rule']} className="mt-2" />
     </div>
   );
 }
