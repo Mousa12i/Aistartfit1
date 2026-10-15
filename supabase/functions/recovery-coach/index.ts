@@ -1,3 +1,4 @@
+import { languageInstruction } from '../_shared/language.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
 import { COACH_CLAIMS } from './evidence.generated.ts';
@@ -155,7 +156,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: 'o3-mini',
         messages: [
-          { role: 'system', content: `${buildSystemPrompt(COACH_CLAIMS)}\n\n=== CONTEXT ===\n${context}\n${trainingContext}` },
+          { role: 'system', content: `${buildSystemPrompt(COACH_CLAIMS)}\n\n${languageInstruction(profileRow?.preferred_language)}\n\n=== CONTEXT ===\n${context}\n${trainingContext}` },
           ...chatHistory,
           { role: 'user', content: message },
         ],

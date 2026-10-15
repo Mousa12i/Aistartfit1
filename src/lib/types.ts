@@ -34,6 +34,8 @@ export interface Profile {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_current_period_end: string | null;
+  /** Language chosen right after sign-in (NULL until chosen). */
+  preferred_language?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Dumbbell, Mail, Lock, ChevronLeft, AlertCircle, ArrowLeft, Check } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { useI18n } from '@/lib/i18n';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -16,6 +17,7 @@ interface AuthScreenProps {
 export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) {
   const navigate = useNavigate();
   const { signIn, signUp, resetPassword } = useAuth();
+  const { t, dir } = useI18n();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,11 +32,11 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
     setSuccess(null);
 
     if (!email.trim() || !password.trim()) {
-      setError('Please fill in all fields.');
+      setError(t('auth.fillAll'));
       return;
     }
     if (mode === 'signup' && password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError(t('auth.passwordShort'));
       return;
     }
 
@@ -47,7 +49,7 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
       }
     } else if (mode === 'signup') {
       if (!displayName.trim()) {
-        setError('Please enter your name.');
+        setError(t('auth.enterName'));
         setLoading(false);
         return;
       }
@@ -56,7 +58,7 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
         setError(signUpError);
         setLoading(false);
       } else {
-        setSuccess('Account created! Check your email if confirmation is required, or sign in with your credentials.');
+        setSuccess(t('auth.created'));
         setLoading(false);
         setMode('signin');
       }
@@ -65,20 +67,20 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
       if (resetError) {
         setError(resetError);
       } else {
-        setSuccess('Password reset link sent to your email.');
+        setSuccess(t('auth.resetSent'));
       }
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-ink-bg flex flex-col safe-top">
+    <div className="min-h-screen bg-ink-bg flex flex-col safe-top" dir={dir}>
       <div className="px-5 pt-5 pb-2">
         <button
           onClick={onBack}
           className="w-10 h-10 rounded-xl bg-ink-elevated flex items-center justify-center text-cloud-dim hover:text-cloud transition-colors"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
         </button>
       </div>
 
@@ -91,21 +93,17 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
         </div>
 
         <h1 className="text-display-lg text-cloud mb-2">
-          {mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create account' : 'Reset password'}
+          {mode === 'signin' ? t('auth.welcomeBack') : mode === 'signup' ? t('auth.createAccount') : t('auth.resetPassword')}
         </h1>
         <p className="text-sm text-cloud-dim mb-8">
-          {mode === 'signin'
-            ? 'Sign in to continue your fitness journey.'
-            : mode === 'signup'
-            ? 'Start your fitness journey today.'
-            : "Enter your email and we'll send you a reset link."}
+          {mode === 'signin' ? t('auth.signinSubtitle') : mode === 'signup' ? t('auth.signupSubtitle') : t('auth.resetSubtitle')}
         </p>
 
         {!isSupabaseConfigured && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-rust/10 border border-rust/20 mb-6">
             <AlertCircle className="w-5 h-5 text-rust flex-shrink-0 mt-0.5" />
             <p className="text-xs text-rust/90 leading-relaxed">
-              Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file to enable authentication.
+              {t('auth.notConfigured')}
             </p>
           </div>
         )}
@@ -127,15 +125,15 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {mode === 'signup' && (
             <Input
-              label="Name"
+              label={t('auth.name')}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t('auth.namePlaceholder')}
               autoComplete="name"
             />
           )}
           <Input
-            label="Email"
+            label={t('auth.email')}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -145,7 +143,7 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
           />
           {mode !== 'reset' && (
             <Input
-              label="Password"
+              label={t('auth.password')}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -159,14 +157,14 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
             <button
               type="button"
               onClick={() => { setMode('reset'); setError(null); setSuccess(null); }}
-              className="text-xs text-cloud-dim hover:text-lime transition-colors text-right -mt-2"
+              className="text-xs text-cloud-dim hover:text-lime transition-colors text-end -mt-2"
             >
-              Forgot password?
+              {t('auth.forgot')}
             </button>
           )}
 
           <Button type="submit" size="lg" loading={loading} className="w-full mt-2">
-            {mode === 'signin' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Send Reset Link'}
+            {mode === 'signin' ? t('auth.signIn') : mode === 'signup' ? t('auth.createAccountButton') : t('auth.sendReset')}
           </Button>
         </form>
 
@@ -175,14 +173,14 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
             onClick={() => { setMode('signin'); setError(null); setSuccess(null); }}
             className="flex items-center justify-center gap-1.5 text-sm text-cloud-dim hover:text-cloud mt-4 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to sign in
+            <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
+            {t('auth.backToSignIn')}
           </button>
         )}
 
         {mode !== 'reset' && (
           <p className="text-center text-sm text-cloud-dim mt-6">
-            {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+            {mode === 'signin' ? t('auth.noAccount') : t('auth.haveAccount')}{' '}
             <button
               onClick={() => {
                 setMode(mode === 'signin' ? 'signup' : 'signin');
@@ -191,14 +189,14 @@ export function AuthScreen({ initialMode = 'signin', onBack }: AuthScreenProps) 
               }}
               className="text-lime font-medium hover:text-lime-dark transition-colors"
             >
-              {mode === 'signin' ? 'Sign up' : 'Sign in'}
+              {mode === 'signin' ? t('auth.signUpLink') : t('auth.signInLink')}
             </button>
           </p>
         )}
 
         <p className="text-center text-xs text-cloud-dim mt-4">
-          {mode === 'signup' ? 'By creating an account you confirm you have read our ' : 'Read our '}
-          <button type="button" onClick={() => navigate('/privacy')} className="text-lime underline">Privacy Policy</button>.
+          {mode === 'signup' ? t('auth.privacySignup') : t('auth.privacyRead')}{' '}
+          <button type="button" onClick={() => navigate('/privacy')} className="text-lime underline">{t('auth.privacyPolicy')}</button>.
         </p>
       </div>
     </div>

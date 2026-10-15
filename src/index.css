@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -12,6 +12,18 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+  }
+
+  html[lang='ar'] body,
+  html[lang='ar'] input,
+  html[lang='ar'] textarea,
+  html[lang='ar'] button {
+    font-family: 'IBM Plex Sans Arabic', 'Inter', system-ui, sans-serif;
+  }
+
+  /* Arabic letters must stay joined: no letter-spacing or uppercase tracking in RTL */
+  html[dir='rtl'] [class*='tracking-'] {
+    letter-spacing: 0 !important;
   }
 
   body {

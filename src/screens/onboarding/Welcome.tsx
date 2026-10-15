@@ -1,5 +1,6 @@
 import { ChevronRight, Activity, Sparkles, Dumbbell } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useI18n } from '@/lib/i18n';
 
 interface WelcomeProps {
   onGetStarted: () => void;
@@ -7,12 +8,13 @@ interface WelcomeProps {
 }
 
 export function Welcome({ onGetStarted, onSignIn }: WelcomeProps) {
+  const { t, dir } = useI18n();
   return (
-    <div className="relative min-h-screen flex flex-col">
+    <div className="relative min-h-screen flex flex-col" dir={dir}>
       <div className="absolute inset-0">
         <img
           src="/hero-onboarding.webp"
-          alt="Athlete training"
+          alt={t('welcome.imageAlt')}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-hero-overlay" />
@@ -27,36 +29,36 @@ export function Welcome({ onGetStarted, onSignIn }: WelcomeProps) {
         </div>
 
         <h1 className="text-display-xl leading-[1.05] mb-4 text-balance animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-          <span className="text-cloud block">Train Smarter.</span>
-          <span className="text-lime block">Become Stronger.</span>
+          <span className="text-cloud block">{t('welcome.title1')}</span>
+          <span className="text-lime block">{t('welcome.title2')}</span>
         </h1>
 
         <p className="text-base text-cloud-dim leading-relaxed max-w-sm mb-8 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-          Your premium fitness companion. Personalised workouts, expert guidance, and AI-powered coaching — all in one app.
+          {t('welcome.subtitle')}
         </p>
 
         <div className="flex flex-col gap-3 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
           <Button size="lg" onClick={onGetStarted} className="w-full">
-            Get Started
-            <ChevronRight className="w-5 h-5" />
+            {t('welcome.getStarted')}
+            <ChevronRight className="w-5 h-5 rtl:rotate-180" />
           </Button>
           <Button size="lg" variant="ghost" onClick={onSignIn} className="w-full text-cloud/80 hover:text-cloud">
-            I already have an account
+            {t('welcome.haveAccount')}
           </Button>
         </div>
 
         <div className="flex items-center justify-center gap-6 mt-8 text-cloud-muted animate-fade-in" style={{ animationDelay: '0.5s' }}>
           <div className="flex items-center gap-1.5">
             <Activity className="w-4 h-4" />
-            <span className="text-xs">Workouts</span>
+            <span className="text-xs">{t('welcome.featureWorkouts')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Sparkles className="w-4 h-4" />
-            <span className="text-xs">AI Coach</span>
+            <span className="text-xs">{t('welcome.featureCoach')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Dumbbell className="w-4 h-4" />
-            <span className="text-xs">27 Exercises</span>
+            <span className="text-xs">{t('welcome.featureRecovery')}</span>
           </div>
         </div>
       </div>

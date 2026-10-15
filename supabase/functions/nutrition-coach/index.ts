@@ -1,3 +1,4 @@
+import { languageInstruction } from '../_shared/language.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
 import { formatTrainingContext, loadTrainingContext } from '../_shared/training-context.ts';
@@ -162,7 +163,7 @@ Deno.serve(async (req: Request) => {
 
     const trainingContext = await loadTrainingContext(db, user.id, now).then(formatTrainingContext).catch(() => '');
     const messages = [
-      { role: 'system', content: `${buildSystemPrompt(flags, mode)}\n\n=== USER CONTEXT ===\n${context}${trainingContext ? `\n\n=== TRAINING ===\n${trainingContext}` : ''}${memoryText}` },
+      { role: 'system', content: `${buildSystemPrompt(flags, mode)}\n\n${languageInstruction(profileRow?.preferred_language)}\n\n=== USER CONTEXT ===\n${context}${trainingContext ? `\n\n=== TRAINING ===\n${trainingContext}` : ''}${memoryText}` },
       ...history,
       { role: 'user', content: message },
     ];

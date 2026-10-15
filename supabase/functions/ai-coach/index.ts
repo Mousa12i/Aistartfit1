@@ -1,3 +1,4 @@
+import { languageInstruction } from '../_shared/language.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
 import { formatTrainingContext, loadTrainingContext } from '../_shared/training-context.ts';
@@ -410,7 +411,7 @@ Deno.serve(async (req: Request) => {
 
     // Build messages for OpenAI
     const messages: ChatMessage[] = [
-      { role: 'system', content: contextPrompt },
+      { role: 'system', content: `${contextPrompt}\n\n${languageInstruction(profile?.preferred_language)}` },
       ...history.slice(-10).map((m): ChatMessage => ({
         role: m.role === 'user' ? 'user' : 'assistant',
         content: m.content,

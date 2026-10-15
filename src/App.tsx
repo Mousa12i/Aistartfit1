@@ -34,10 +34,13 @@ import { ConsentProvider, useConsent } from '@/lib/consent-context';
 import { HealthConsent } from '@/screens/legal/HealthConsent';
 import { PrivacyPolicyPage } from '@/screens/legal/PrivacyPolicyPage';
 import { AiConsentGate } from '@/components/privacy/AiConsentGate';
+import { I18nProvider, useI18n } from '@/lib/i18n';
+import { LanguagePicker } from '@/screens/onboarding/LanguagePicker';
 
 function AppContent() {
   const { session, profile, loading, profileLoading } = useAuth();
   const consent = useConsent();
+  const { t, chosen: languageChosen } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<Tab>('routines');
@@ -58,7 +61,7 @@ function AppContent() {
     return (
       <div className="min-h-screen bg-ink-bg flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-3 border-ink-border border-t-lime rounded-full animate-spin" />
-        <p className="text-sm text-cloud-dim mt-4">Loading StartFit...</p>
+        <p className="text-sm text-cloud-dim mt-4">{t('app.loading')}</p>
       </div>
     );
   }
@@ -97,9 +100,14 @@ function AppContent() {
     return (
       <div className="min-h-screen bg-ink-bg flex flex-col items-center justify-center">
         <div className="w-10 h-10 border-2 border-ink-border border-t-lime rounded-full animate-spin" />
-        <p className="text-xs text-cloud-dim mt-3">Setting up your profile...</p>
+        <p className="text-xs text-cloud-dim mt-3">{t('app.settingUpProfile')}</p>
       </div>
     );
+  }
+
+  // Right after sign-in: ask which language the whole app (and the coaches) should use.
+  if (profile && !languageChosen) {
+    return <LanguagePicker />;
   }
 
   // Explicit consent to health-data processing comes before any health data is collected (UK GDPR Art. 9(2)(a))
@@ -295,6 +303,7 @@ function AiConsentRoute({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
+      <I18nProvider>
       <ConsentProvider>
         <EntitlementsProvider>
           <HashRouter>
@@ -302,6 +311,7 @@ export default function App() {
           </HashRouter>
         </EntitlementsProvider>
       </ConsentProvider>
+      </I18nProvider>
     </AuthProvider>
   );
 }

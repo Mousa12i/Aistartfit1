@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useConsent } from '@/lib/consent-context';
 import { deleteMyAccount } from '@/lib/privacy';
+import { LANGUAGES, useI18n } from '@/lib/i18n';
 
 interface SettingsProps {
   onBack: () => void;
@@ -18,6 +19,8 @@ interface SettingsProps {
 
 export function Settings({ onBack }: SettingsProps) {
   const { profile, updateProfile, signOut } = useAuth();
+  const { t, lang, dir, setLanguage } = useI18n();
+  const [langError, setLangError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(profile?.notification_enabled ?? true);
   const [unitSystem, setUnitSystem] = useState(profile?.unit_system ?? 'metric');
   const [savingNotif, setSavingNotif] = useState(false);
@@ -88,15 +91,47 @@ export function Settings({ onBack }: SettingsProps) {
           onClick={onBack}
           className="w-10 h-10 rounded-xl bg-ink-elevated flex items-center justify-center text-cloud-dim hover:text-cloud transition-colors"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
         </button>
-        <h1 className="text-display-sm text-cloud font-semibold">Settings</h1>
+        <h1 className="text-display-sm text-cloud font-semibold">{t('settings.title')}</h1>
       </div>
 
       <div className="px-5 flex flex-col gap-5">
+        {/* Language */}
+        <div data-testid="settings-language" dir={dir}>
+          <h3 className="text-sm font-semibold text-cloud mb-3">{t('lang.settingsTitle')}</h3>
+          <Card className="p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-ink-elevated flex items-center justify-center text-cloud-dim">
+                <Globe className="w-4 h-4" />
+              </div>
+              <p className="text-xs text-cloud-dim">{t('lang.settingsDescription')}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {LANGUAGES.map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => {
+                    setLangError(null);
+                    setLanguage(l.code).catch(() => setLangError(t('lang.saveError')));
+                  }}
+                  aria-pressed={lang === l.code}
+                  data-testid={`settings-lang-${l.code}`}
+                  className={cn('rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors', lang === l.code ? 'border-lime/60 bg-lime/10 text-lime' : 'border-ink-border bg-ink-elevated text-cloud')}
+                >
+                  <span dir={l.dir}>{l.native}</span>
+                </button>
+              ))}
+            </div>
+            {lang !== 'en' && <p className="mt-2 text-[11px] text-cloud-dim">{t('lang.partialNote')}</p>}
+            {langError && <p className="mt-2 text-xs text-rust">{langError}</p>}
+          </Card>
+        </div>
+
         {/* Preferences */}
         <div>
-          <h3 className="text-sm font-semibold text-cloud mb-3">Preferences</h3>
+          <h3 className="text-sm font-semibold text-cloud mb-3">{t('settings.preferences')}</h3>
           <Card className="divide-y divide-ink-border">
             <ToggleRow
               icon={<Bell className="w-4 h-4" />}

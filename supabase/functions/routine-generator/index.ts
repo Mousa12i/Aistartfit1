@@ -1,3 +1,4 @@
+import { languageInstruction } from '../_shared/language.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
 
@@ -171,7 +172,7 @@ Return ONLY valid JSON in this exact format:
       body: JSON.stringify({
         model: 'o3-mini',
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: `${systemPrompt}\n\n${languageInstruction(profile.preferred_language)}` },
           { role: 'user', content: userPrompt },
         ],
         max_completion_tokens: 4000,
