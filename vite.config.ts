@@ -4,8 +4,8 @@ import { fileURLToPath, URL } from 'node:url';
 
 // Public Supabase settings (safe in the app: every table is protected by row-level security).
 // Used when the host does not provide a .env, so the deployed app always reaches its backend.
-const DEFAULT_SUPABASE_URL = 'https://ylubexppjgwjjresuqnu.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_WMQA9ArBUqMMdLqrK0k5og_Ez3g2jZw';
+const DEFAULT_SUPABASE_URL = 'https://vhlrfkndubpmxqfzusoo.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_J6ROQsIlVZfpgz4tdFQiww_ifTfV7dl';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
