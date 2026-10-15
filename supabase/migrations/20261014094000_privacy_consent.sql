@@ -70,3 +70,7 @@ CREATE TRIGGER user_consents_touch BEFORE INSERT OR UPDATE ON public.user_consen
   FOR EACH ROW EXECUTE FUNCTION public.touch_consent();
 CREATE TRIGGER user_consents_log AFTER INSERT OR UPDATE ON public.user_consents
   FOR EACH ROW EXECUTE FUNCTION public.log_consent_event();
+
+-- Trigger functions are not part of the public API.
+REVOKE EXECUTE ON FUNCTION public.log_consent_event() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.touch_consent() FROM PUBLIC, anon, authenticated;
