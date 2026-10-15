@@ -34,7 +34,21 @@ export interface NormalizedFood {
   sourceLabel: string;
   dataNote?: string;
   category?: string;
+  /** 'check' when the label's energy does not match its protein, carbohydrate and fat. */
+  quality?: 'ok' | 'check';
 }
+
+/**
+ * Energy should roughly equal protein×4 + carbohydrate×4 + fat×9 (+ alcohol×7). Fibre (about 2 kcal/g) and
+ * rounding on labels explain small gaps, so only a gap above 25% and 40 kcal per 100 g is flagged.
+ */
+export function energyLooksWrong(per100: { kcal: number; protein: number; carbs: number; fat: number }, alcoholG = 0): boolean {
+  const atwater = per100.protein * 4 + per100.carbs * 4 + per100.fat * 9 + alcoholG * 7;
+  const gap = Math.abs(per100.kcal - atwater);
+  return gap > 40 && gap / Math.max(per100.kcal, atwater, 1) > 0.25;
+}
+
+const CHECK_NOTE = ' Its calories do not match its protein, carbs and fat, so check the numbers on your pack.';
 
 interface Target {
   key: CoreKey | MicroKey;
@@ -269,6 +283,7 @@ export function normalizeUsdaFood(food: UsdaSearchFood): NormalizedFood | null {
 
   const dataType = food.dataType ?? '';
   const branded = dataType === 'Branded';
+  const suspicious = energyLooksWrong({ kcal, protein: protein ?? 0, carbs: carbs ?? 0, fat: fat ?? 0 }, best.alcohol_g?.value ?? 0);
   const brand = branded ? (food.brandName || food.brandOwner || '').trim() || null : null;
   return {
     ref: `usda:${food.fdcId}`,
@@ -290,11 +305,12 @@ export function normalizeUsdaFood(food: UsdaSearchFood): NormalizedFood | null {
     defaultGrams: servings[1]?.grams ?? 100,
     sourceLabel: DATA_TYPE_LABEL[dataType] ?? 'USDA FoodData Central',
     dataNote:
-      dataNote ??
+      (dataNote ??
       (branded
         ? 'Values from the label the manufacturer submitted to USDA. Check your pack — recipes change.'
-        : 'USDA reference values for this food. Choose raw or cooked to match how you weighed it.'),
+        : 'USDA reference values for this food. Choose raw or cooked to match how you weighed it.')) + (suspicious ? CHECK_NOTE : ''),
     category: food.foodCategory ?? undefined,
+    quality: suspicious ? 'check' : 'ok',
   };
 }
 
@@ -330,13 +346,15 @@ export function normalizeOffProduct(code: string, product: Record<string, unknow
     servings.push({ label, grams: r(sq, 1) });
   }
 
+  const finalKcal = kcal ?? (protein ?? 0) * 4 + (carbs ?? 0) * 4 + (fat ?? 0) * 9;
+  const suspicious = energyLooksWrong({ kcal: finalKcal, protein: protein ?? 0, carbs: carbs ?? 0, fat: fat ?? 0 }, num(n['alcohol_100g']) ?? 0);
   return {
     ref: `off:${code}`,
     source: 'off',
     name: name.slice(0, 200),
     brand,
     per100: {
-      kcal: r(kcal ?? (protein ?? 0) * 4 + (carbs ?? 0) * 4 + (fat ?? 0) * 9, 1),
+      kcal: r(finalKcal, 1),
       protein: r(protein ?? 0, 2),
       carbs: r(carbs ?? 0, 2),
       fat: r(fat ?? 0, 2),
@@ -349,7 +367,8 @@ export function normalizeOffProduct(code: string, product: Record<string, unknow
     servings,
     defaultGrams: servings[1]?.grams ?? 100,
     sourceLabel: 'Open Food Facts (label data)',
-    dataNote: 'Label data entered by Open Food Facts contributors. Check it against your pack.',
+    dataNote: 'Label data entered by Open Food Facts contributors. Check it against your pack.' + (suspicious ? CHECK_NOTE : ''),
+    quality: suspicious ? 'check' : 'ok',
   };
 }
 

@@ -92,6 +92,13 @@ export const PROFILE_OVERRIDES: Record<string, ProfileOverride> = {
   'D:Dumbbell Scaption': SCAPTION,
   'C:Empty Can Raise': SCAPTION,
   'D:Side Laterals to Front Raise': { pattern: 'shoulder_abduction', primary: ['side_delts', 'front_delts'], secondary: ['traps'] },
+  // 2026-10-15 review: pullovers do not train the rear delts (lats and long-head triceps assist);
+  // band crossovers are chest + front delts, not biceps.
+  'D:Bent-Arm Barbell Pullover': { pattern: 'pullover', primary: ['lats'], secondary: ['upper_chest', 'lower_chest', 'triceps'], flags: ['overhead'] },
+  'D:Bent-Arm Dumbbell Pullover': { pattern: 'pullover', primary: ['upper_chest', 'lower_chest'], secondary: ['lats', 'triceps'], flags: ['overhead'] },
+  'D:Straight-Arm Dumbbell Pullover': { pattern: 'pullover', primary: ['upper_chest', 'lower_chest'], secondary: ['lats', 'triceps'], flags: ['overhead'] },
+  'D:Wide-Grip Decline Barbell Pullover': { pattern: 'pullover', primary: ['lower_chest'], secondary: ['lats', 'triceps'], flags: ['overhead'] },
+  'D:Cross Over - With Bands': { pattern: 'chest_fly', primary: ['upper_chest', 'lower_chest'], secondary: ['front_delts'] },
   'D:Front Raise And Pullover': { pattern: 'pullover', primary: ['lats', 'upper_chest', 'lower_chest'], secondary: ['triceps', 'front_delts'], flags: ['overhead'] },
   // The Pallof press is an anti-rotation core exercise; the dataset's chest/shoulder/triceps tags would add chest volume.
   'D:Pallof Press': { primary: ['obliques', 'abs'], secondary: [] },

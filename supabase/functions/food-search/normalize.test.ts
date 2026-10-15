@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dedupeFoods, normalizeOffProduct, normalizeUsdaFood, titleCase } from './normalize';
+import { dedupeFoods, energyLooksWrong, normalizeOffProduct, normalizeUsdaFood, titleCase } from './normalize';
 
 describe('normalizeUsdaFood', () => {
   it('maps SR Legacy search results (nutrientNumber + nutrientId fields)', () => {
@@ -140,5 +140,16 @@ describe('helpers', () => {
     const a = normalizeOffProduct('111111', { product_name: 'Same', nutriments: { 'energy-kcal_100g': 1 } });
     const b = normalizeOffProduct('222222', { product_name: 'Same', nutriments: { 'energy-kcal_100g': 2 } });
     expect(dedupeFoods([a!, b!])).toHaveLength(1);
+  });
+});
+
+describe('energy consistency check', () => {
+  it('accepts labels whose energy matches 4/4/9', () => {
+    expect(energyLooksWrong({ kcal: 165, protein: 31, carbs: 0, fat: 3.6 })).toBe(false); // chicken breast
+    expect(energyLooksWrong({ kcal: 69, protein: 0, carbs: 0, fat: 0 }, 10)).toBe(false); // wine-like, alcohol 7 kcal/g
+  });
+  it('flags labels that cannot be right', () => {
+    expect(energyLooksWrong({ kcal: 500, protein: 10, carbs: 10, fat: 1 })).toBe(true);
+    expect(energyLooksWrong({ kcal: 20, protein: 20, carbs: 30, fat: 10 })).toBe(true);
   });
 });
