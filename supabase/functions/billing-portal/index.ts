@@ -14,6 +14,27 @@ function response(body: Record<string, unknown>, status = 200): Response {
   });
 }
 
+/**
+ * Live mode has no customer portal until one is configured. Use the dashboard's default if it exists,
+ * otherwise an active one, otherwise create StartFit's: invoices, card update, cancel at period end.
+ */
+async function portalConfiguration(stripe: Stripe, origin: string): Promise<string> {
+  const list = await stripe.billingPortal.configurations.list({ limit: 10 });
+  const pick = list.data.find((c) => c.is_default && c.active) ?? list.data.find((c) => c.active);
+  if (pick) return pick.id;
+  const created = await stripe.billingPortal.configurations.create({
+    business_profile: { headline: 'StartFit: manage your subscription', privacy_policy_url: `${origin}/#/privacy` },
+    default_return_url: `${origin}/#/profile`,
+    features: {
+      invoice_history: { enabled: true },
+      payment_method_update: { enabled: true },
+      customer_update: { enabled: true, allowed_updates: ['email', 'address'] },
+      subscription_cancel: { enabled: true, mode: 'at_period_end', cancellation_reason: { enabled: true, options: ['too_expensive', 'missing_features', 'unused', 'other'] } },
+    },
+  });
+  return created.id;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });
 
@@ -51,6 +72,7 @@ Deno.serve(async (req: Request) => {
     const stripe = new Stripe(secret, { apiVersion: '2024-12-18.acacia' });
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
+      configuration: await portalConfiguration(stripe, origin),
       return_url: `${origin}/#/profile`,
     });
 
