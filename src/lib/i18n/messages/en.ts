@@ -25,7 +25,6 @@ export const en = {
   'nav.progress': 'Progress',
   'nav.settings': 'Settings',
   'nav.search': 'Search your app',
-  'nav.remindersOn': 'Recovery reminders on',
   'tier.free': 'Free',
 
   // ---- welcome ----
@@ -433,6 +432,24 @@ export const en = {
   'coach.roleCoachBody': "Everything for your own training, plus a coach portal: your athletes' data, weekly check-ins, chat and plan editing. Free for up to 8 athletes.",
   'coach.roleChangeLater': "You can switch later in Settings.",
   'coach.noWorkoutYet': "No workout yet",
+
+  // ---- notifications ----
+  'notif.title': "Notifications",
+  'notif.message': "New message from {name}",
+  'notif.checkin': "{name} sent their weekly check-in",
+  'notif.checkinReviewed': "{name} replied to your check-in",
+  'notif.newAthlete': "{name} joined your team",
+  'notif.targetsChanged': "{name} updated your nutrition targets",
+  'notif.routineGiven': "{name} gave you a new routine",
+  'notif.empty': "Nothing new yet.",
+  'notif.enablePrompt': "Get a notification on this device when your coach or athletes message you, a check-in arrives or your plan changes.",
+  'notif.enable': "Turn on notifications",
+  'notif.iosInstall': "On iPhone, notifications work once StartFit is on your Home Screen: tap Share, then “Add to Home Screen”, and open StartFit from there.",
+  'notif.denied': "Notifications are blocked for StartFit in this browser. Allow them in the browser or phone settings, then try again.",
+  'notif.unsupported': "This browser cannot show notifications.",
+  'notif.settingsTitle': "Notifications on this device",
+  'notif.settingsBody': "Messages, check-ins and plan changes from your coach or athletes",
+  'notif.error': "Could not turn on notifications. Please try again.",
 } as const;
 
 export type MessageKey = keyof typeof en;

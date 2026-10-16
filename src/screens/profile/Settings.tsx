@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,7 @@ import { useConsent } from '@/lib/consent-context';
 import { deleteMyAccount } from '@/lib/privacy';
 import { LANGUAGES, useI18n } from '@/lib/i18n';
 import { becomeCoach, setAthleteRole } from '@/lib/coach/api';
+import { disablePush, enablePush, pushState, type PushState } from '@/lib/push';
 
 interface SettingsProps {
   onBack: () => void;
@@ -22,7 +23,10 @@ export function Settings({ onBack }: SettingsProps) {
   const { profile, updateProfile, signOut } = useAuth();
   const { t, lang, dir, setLanguage } = useI18n();
   const [langError, setLangError] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState(profile?.notification_enabled ?? true);
+  const { user } = useAuth();
+  const [push, setPush] = useState<PushState | null>(null);
+  const [notifError, setNotifError] = useState<string | null>(null);
+  useEffect(() => { pushState().then(setPush).catch(() => setPush('unsupported')); }, []);
   const [unitSystem, setUnitSystem] = useState(profile?.unit_system ?? 'metric');
   const [savingNotif, setSavingNotif] = useState(false);
   const consent = useConsent();
@@ -36,12 +40,18 @@ export function Settings({ onBack }: SettingsProps) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showSignOut, setShowSignOut] = useState(false);
 
+  // Real phone / browser notifications: subscribe this device, or unsubscribe it.
   const handleNotificationToggle = async () => {
+    if (!user) return;
     setSavingNotif(true);
-    const newValue = !notifications;
-    setNotifications(newValue);
-    await updateProfile({ notification_enabled: newValue });
-    setSavingNotif(false);
+    setNotifError(null);
+    try {
+      setPush(push === 'on' ? await disablePush(user.id) : await enablePush(user.id));
+    } catch {
+      setNotifError(t('notif.error'));
+    } finally {
+      setSavingNotif(false);
+    }
   };
 
   const toggleAi = async () => {
@@ -137,14 +147,18 @@ export function Settings({ onBack }: SettingsProps) {
         <div>
           <h3 className="text-sm font-semibold text-cloud mb-3">{t('settings.preferences')}</h3>
           <Card className="divide-y divide-ink-border">
-            <ToggleRow
-              icon={<Bell className="w-4 h-4" />}
-              label="Notifications"
-              description="Workout reminders and updates"
-              value={notifications}
-              onToggle={handleNotificationToggle}
-              loading={savingNotif}
-            />
+            <div dir={dir}>
+              <ToggleRow
+                icon={<Bell className="w-4 h-4" />}
+                label={t('notif.settingsTitle')}
+                description={t(push === 'needs-install' ? 'notif.iosInstall' : push === 'denied' ? 'notif.denied' : push === 'unsupported' ? 'notif.unsupported' : 'notif.settingsBody')}
+                value={push === 'on'}
+                onToggle={handleNotificationToggle}
+                loading={savingNotif || push === null}
+                testId="settings-notifications"
+              />
+              {notifError && <p className="px-4 pb-3 text-xs text-rust">{notifError}</p>}
+            </div>
             <div className="p-4">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 rounded-lg bg-ink-elevated flex items-center justify-center text-cloud-dim">

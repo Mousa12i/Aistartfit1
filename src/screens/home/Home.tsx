@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { GoalEntryCard } from '@/screens/nutrition/GoalPage';
 import { CoachEntryCard } from '@/screens/coach/RolePicker';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useAuth } from '@/lib/auth';
 import { fetchUserSessions, fetchWorkoutPlans } from '@/lib/data';
 import type { WorkoutSession, WorkoutPlan } from '@/lib/types';
@@ -93,9 +94,12 @@ export function Home({ onNavigate, onTabChange }: HomeProps) {
           <p className="text-xs text-cloud-dim mb-0.5">{greeting},</p>
           <h1 className="text-display-md text-cloud font-bold">{firstName}</h1>
         </div>
-        <button onClick={() => onNavigate({ name: 'profile' })}>
-          <Avatar name={profile?.display_name ?? null} url={profile?.avatar_url ?? null} size="md" />
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <button onClick={() => onNavigate({ name: 'profile' })}>
+            <Avatar name={profile?.display_name ?? null} url={profile?.avatar_url ?? null} size="md" />
+          </button>
+        </div>
       </div>
 
       {/* Hero */}

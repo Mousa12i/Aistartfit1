@@ -12,6 +12,7 @@ import {
 } from '@/lib/coach/insights';
 import { Avatar, PulseStrip, RISK_STYLE, Sheet, Sparkline, reasonText, relativeDays } from './ui';
 import { CoachSettingsSheet } from './CoachSettingsSheet';
+import { NotificationBell } from '@/components/NotificationBell';
 
 type Filter = 'all' | 'attention' | 'checkins' | 'unread';
 
@@ -131,6 +132,7 @@ export function CoachHome() {
           <div className="truncate text-xs text-cloud-dim">{profile?.coach_brand_name || t('coach.portal')}</div>
           <h1 className="truncate text-[22px] font-bold leading-tight text-cloud">{t('coach.hello', { name: firstName || t('coach.coach') })}</h1>
         </div>
+        <NotificationBell />
         <button type="button" onClick={() => setSettingsOpen(true)} aria-label={t('coach.settings')} className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-elevated text-cloud-dim">
           <Settings2 className="h-5 w-5" />
         </button>
