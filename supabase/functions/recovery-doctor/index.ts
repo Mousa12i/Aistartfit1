@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
+import { languageInstruction } from '../_shared/language.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -75,6 +76,7 @@ Deno.serve(async (req: Request) => {
     const sources = evidence.filter((source) => body.evidenceIds.includes(source.id));
 
     if (!openAiKey) return response({ error: 'Recovery interpretation is not configured' }, 503);
+    const { data: langRow } = await consentDb.from('profiles').select('preferred_language').eq('id', user.id).maybeSingle();
 
     const prompt = [
       'You are a Sports Science Recovery Engine generating an evidence-informed scientific report for a specific muscle group.',
@@ -91,20 +93,21 @@ Deno.serve(async (req: Request) => {
       '4. sources: Copy only from the allowlisted sources below. Return as array of {id, citation} objects.',
       '',
       'SCIENTIFIC CONTEXT TO REFERENCE (only cite from the allowlist):',
-      '- Muscle protein synthesis (MPS) remains elevated 24-48h post-resistance training; larger muscles may take longer.',
+      '- Muscle protein synthesis (MPS) remains elevated 24-48h post-resistance training.',
       '- Muscle damage from eccentric loading peaks at 24-72h; soreness (DOMS) is not a reliable recovery marker.',
       '- Functional recovery often precedes full tissue recovery; recovery percentage estimates tissue readiness.',
-      '- Weekly effective sets per muscle group should stay within MEV (minimum effective volume) to MAV (maximum recoverable volume) range.',
-      '- Sleep restriction impairs MPS, testosterone, and recovery; 7-9h is the evidence-based target.',
-      '- Protein intake of 1.6-2.2g/kg bodyweight per day, distributed across 3-4 meals, supports MPS.',
+      '- About 10-20 hard sets per muscle per week is the range most studied for growth; more is not always better and recovery needs rise with volume.',
+      '- Sleep restriction lowers muscle protein synthesis (Saner et al. 2020); adults are advised to sleep 7-9 hours.',
+      '- About 1.6 g/kg/day of protein (upper range 2.2) maximises gains from training (Morton et al. 2018); spreading it over 3-4 meals is a reasonable practice.',
       '',
       'STRICT RULES:',
       'Do not diagnose, prescribe medical treatment, invent measurements, infer missing values, or cite sources not in the allowlist.',
       'Do not claim a study proves more than its citation states.',
       'Return JSON only with keys: summary, actions, limitations, sources.',
+      languageInstruction(langRow?.preferred_language),
+      'Keep each source citation exactly as given, in its original language.',
       'summary must be a string. actions must be an array of strings. limitations must be an array of strings. sources must be an array of objects with id and citation copied exactly from the allowlist.',
       '',
-      `Verified user id: ${user.id}`,
       `Selected muscle facts: ${JSON.stringify(body.muscleState)}`,
       `Readiness facts: ${JSON.stringify(body.readiness)}`,
       `Allowlisted sources: ${JSON.stringify(sources)}`,

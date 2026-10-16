@@ -59,6 +59,7 @@ Deno.serve(async (req: Request) => {
 
     // ---- Usage limits (shared with the other coaches) ----
     const { data: profileRow } = await db.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    // An ended 24h pass is reset to free by the expire_daily_passes job within 5 minutes.
     const tier = (profileRow?.subscription_tier as string) ?? 'free';
     const limit = TIER_LIMITS[tier] ?? TIER_LIMITS.free;
     const isAdmin = ADMIN_EMAILS.includes((user.email ?? '').toLowerCase());

@@ -47,16 +47,21 @@ function todayKey(): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
-function tierFromProfile(serverTier: string | null | undefined): Tier {
-  if (serverTier === 'pro') return 'pro';
-  if (serverTier === 'plus') return 'plus';
-  return 'free';
+function tierFromProfile(p: { subscription_tier?: string | null; subscription_status?: string | null; subscription_current_period_end?: string | null } | null | undefined): Tier {
+  const serverTier = p?.subscription_tier;
+  const tier: Tier = serverTier === 'pro' ? 'pro' : serverTier === 'plus' ? 'plus' : 'free';
+  // A 24-hour pass ends at its end time, even before the server job resets it.
+  if (tier !== 'free' && p?.subscription_status === 'daily_pass') {
+    const end = p.subscription_current_period_end ? Date.parse(p.subscription_current_period_end) : NaN;
+    if (!Number.isFinite(end) || end <= Date.now()) return 'free';
+  }
+  return tier;
 }
 
 export function EntitlementsProvider({ children }: { children: ReactNode }) {
   const { profile, refreshProfile, user } = useAuth();
   const adminOverride = isAdminEmail(user?.email);
-  const [tier, setTierState] = useState<Tier>(() => tierFromProfile(profile?.subscription_tier));
+  const [tier, setTierState] = useState<Tier>(() => tierFromProfile(profile));
   const [usage, setUsage] = useState<Record<string, number>>(loadUsage);
 
   // Sync tier FROM server profile — or force 'plus' for admin emails.
@@ -64,9 +69,9 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     if (adminOverride) {
       setTierState('plus');
     } else {
-      setTierState(tierFromProfile(profile?.subscription_tier));
+      setTierState(tierFromProfile(profile));
     }
-  }, [profile?.subscription_tier, adminOverride]);
+  }, [profile, adminOverride]);
 
   const config = TIERS[tier];
 

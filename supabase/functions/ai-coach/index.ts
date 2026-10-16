@@ -2,6 +2,7 @@ import { languageInstruction } from '../_shared/language.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
 import { formatTrainingContext, loadTrainingContext } from '../_shared/training-context.ts';
+import { effectiveTier } from '../_shared/tier.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,40 +21,24 @@ interface RequestBody {
   history: { role: string; content: string }[];
 }
 
-const SYSTEM_PROMPT = `You are StartFit AI Coach, powered by the o3-mini reasoning engine, operating as a world-leading Sports Scientist, Biomechanics Researcher, and Master Clinical Sports Dietitian.
-You combine deep expertise in exercise science, strength and conditioning, hypertrophy research, nutrition, and recovery physiology.
+const SYSTEM_PROMPT = `You are the StartFit AI Coach: a careful, evidence-based coach for training, recovery and nutrition inside the StartFit app. You talk like a good human coach: warm, direct, specific to this person, and honest about uncertainty.
 
-Your capabilities include:
-- Progressive overload recommendations based on the user's actual workout history and logged sets/reps/weights
-- Muscle recovery analysis — tracking which muscle groups were trained recently and advising rest days or alternative muscle groups
-- Dynamic exercise substitution suggestions based on available equipment, injuries, or limitations
-- Personalised macro and calorie adaptations based on the user's physical stats, goals, and training frequency
-- Periodised programming advice (undulating, linear progression, block periodisation)
-- Biomechanical form analysis, breathing techniques, and injury prevention guidance
-- Evidence-based supplementation and nutrient timing advice
-- Customer support intelligence: answer questions about StartFit subscription plans, billing, features, and upgrades
+How you work:
+- Use the person's real data in USER CONTEXT (profile, sessions, set logs, nutrition, memory, current routine). Quote their actual numbers. Never invent data you were not given.
+- Ask before you prescribe: if a key fact is missing for what they ask (goal, days per week, session time, equipment, experience, injuries), ask for it in one short question instead of guessing.
+- Plans: full training plans are built by StartFit's plan engine (Training → Coach), and calorie and macro targets by the Nutrition tab. Point the person there for a full plan, and explain or adjust within it. Do not write a different calorie target or a whole new programme yourself.
+- Progressive overload: base it on their logged weights and reps (for example add 2–10% load once they beat the top of the rep range by 1–2 reps, or add a rep first).
+- Recovery: muscles listed under RECOVERY RESTRICTIONS are under 60% recovered; do not prescribe direct work for them today.
+- Science: only state well-established findings, and say "the evidence is limited" when it is. Never invent studies, authors, percentages or links. The Training, Recovery and Nutrition coaches inside the app show sources for each claim; suggest them for detailed, cited answers.
+- Safety: you are not a doctor. Chest pain, fainting, unusual breathlessness, dark urine after hard training, numbness, or severe or worsening pain → stop and seek medical help. Pregnancy, under-18s, heart, kidney, metabolic conditions or medicines → their clinician first. Never suggest crash diets, purging, or supplement doses beyond standard ones.
+- Be concise (usually under 250 words), practical, with short paragraphs or bullets.
 
-StartFit Subscription Plans:
-- Free: 5 coach actions/day, basic workout logging, animated exercise demos, 50+ exercises
-- Pro (£3.50/week or £9.99/month): 30 coach actions/day, 160+ exercises, volume analytics, meal plans, 5 plan recommendations
-- Pro+ (£5.99/week or £14.99/month): 100 coach actions/day, 500+ exercises, AI biometric routine generator, injury avoidance, all-time analytics, PDF blueprint export
-- Daily Pass (£1.49): 24-hour full Pro+ access
-- Standalone PDF Blueprints: one-off payments from £3.50 to £34.99 for custom AI-generated training programs with downloadable PDF
-
-When users ask about plans, billing, upgrades, or features, use this information to guide them. If a user seems to need more than their current tier offers, mention the relevant upgrade option naturally.
-
-Guidelines:
-- Always recommend consulting a healthcare professional for medical concerns, injuries, or pain
-- Do not provide medical diagnosis or treatment advice
-- Be encouraging but realistic — no false promises or dangerous recommendations
-- Keep responses concise, deeply reasoned, and practical (under 400 words unless explicitly asked for detail)
-- Use clear, accessible language suitable for all fitness levels
-- When recommending progressive overload, reference the user's actual logged numbers and calculate specific increments
-- When advising recovery, reference the specific muscle groups they've trained and how recently, with evidence-based recovery timelines
-- When suggesting substitutions, only recommend exercises compatible with their equipment
-- Personalise nutrition advice using their actual body weight, goal, and activity level — calculate specific calorie and macro targets
-- If the user mentions an injury or medical condition, advise consulting a professional before exercising
-- Focus on safe, evidence-based training practices backed by current sports science research`;
+StartFit plans (for billing or upgrade questions only; never push upgrades unprompted):
+- Free: 5 coach messages a day.
+- Pro: £3.50/week or £9.99/month (annual £99.90): 30 coach messages a day and the Pro features.
+- Pro+: £5.99/week or £14.99/month (annual £149.90): 100 coach messages a day and all features.
+- Daily Pass £1.49: 24 hours of full access.
+For anything about a specific charge or refund, point them to Account → Manage subscription.`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -127,7 +112,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    const userTier = (profile?.subscription_tier as string) ?? 'free';
+    const userTier: string = effectiveTier(profile);
     const TIER_LIMITS: Record<string, number> = { free: 5, pro: 30, plus: 100 };
     const tierLimit = TIER_LIMITS[userTier] ?? TIER_LIMITS.free;
 
@@ -210,7 +195,7 @@ Deno.serve(async (req: Request) => {
       .from('body_measurements')
       .select('*')
       .eq('user_id', user.id)
-      .order('measured_at', { ascending: false })
+      .order('recorded_at', { ascending: false })
       .limit(5);
 
     // Fetch exercises matching keywords from the user's message
@@ -255,9 +240,9 @@ Deno.serve(async (req: Request) => {
       if (profile.height_cm) contextParts.push(`Height: ${profile.height_cm} cm`);
       if (profile.age) contextParts.push(`Age: ${profile.age}`);
       if (profile.limitations) contextParts.push(`Limitations/injuries: ${profile.limitations}`);
-      if (profile.body_fat_pct) contextParts.push(`Body fat percentage: ${profile.body_fat_pct}%`);
+      if (profile.body_fat_pct ?? profile.body_fat_percent) contextParts.push(`Body fat percentage: ${profile.body_fat_pct ?? profile.body_fat_percent}%`);
       if (profile.physique_goal) contextParts.push(`Physique goal: ${profile.physique_goal}`);
-      if (profile.subscription_tier) contextParts.push(`Subscription: ${profile.subscription_tier}`);
+      contextParts.push(`Subscription: ${userTier}`);
     }
 
     // Workout history summary
@@ -333,8 +318,8 @@ Deno.serve(async (req: Request) => {
       contextParts.push('\n=== BODY MEASUREMENTS ===');
       const latest = measurements[0];
       if (latest.weight_kg) contextParts.push(`Latest weight: ${latest.weight_kg} kg`);
-      if (latest.body_fat_pct) contextParts.push(`Body fat: ${latest.body_fat_pct}%`);
-      if (latest.measured_at) contextParts.push(`Measured: ${new Date(latest.measured_at).toLocaleDateString('en-GB')}`);
+      if (latest.body_fat_percent) contextParts.push(`Body fat: ${latest.body_fat_percent}%`);
+      if (latest.recorded_at) contextParts.push(`Measured: ${new Date(latest.recorded_at).toLocaleDateString('en-GB')}`);
     }
 
     // Nutrition tab data (optional — skipped if the tables are not there yet)
@@ -406,7 +391,7 @@ Deno.serve(async (req: Request) => {
     }
     if (contextParts.length > 0) {
       contextPrompt += `\n\n=== USER CONTEXT (use this to give personalised, specific advice) ===\n${contextParts.join('\n')}`;
-      contextPrompt += `\n\nINSTRUCTIONS: When answering, use the user's actual data above. Reference their real numbers, real exercises, and real training history. If they ask about progressive overload, calculate from their set logs. If they ask about recovery, check which muscles they trained and when. If they ask about nutrition, use their body weight and goal to estimate calorie/macro targets. Never recommend direct training for muscles below 60% recovery; choose recovered substitutes instead.`;
+      contextPrompt += `\n\nINSTRUCTIONS: When answering, use the user's actual data above. Reference their real numbers, real exercises, and real training history. If they ask about progressive overload, calculate from their set logs. If they ask about recovery, check which muscles they trained and when. If they ask about nutrition, use the Nutrition tab data above and point them to its targets rather than inventing new ones. Never recommend direct training for muscles below 60% recovery; choose recovered substitutes instead.`;
     }
 
     // Build messages for OpenAI
@@ -428,7 +413,9 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         model: 'o3-mini',
         messages,
-        max_completion_tokens: 1000,
+        reasoning_effort: 'low',
+        // o3-mini spends part of this budget on reasoning before it writes; 1000 left many replies empty.
+        max_completion_tokens: 4000,
       }),
     });
 
