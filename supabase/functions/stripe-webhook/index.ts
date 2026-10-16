@@ -19,6 +19,34 @@ const TIER_MAP: Record<string, 'free' | 'pro' | 'plus'> = {
   plus: 'plus',
 };
 
+const COACH_TIERS = ['coach', 'coach_pro', 'studio'];
+
+/** Coach plans live in their own columns, so they never touch the person's own Pro / Pro+ plan. */
+// deno-lint-ignore no-explicit-any
+async function applyCoachSubscription(supabase: any, subscription: Stripe.Subscription, deleted: boolean): Promise<Response> {
+  const userId = subscription.metadata.user_id;
+  const tier = COACH_TIERS.includes(subscription.metadata.coach_tier) ? subscription.metadata.coach_tier : 'free';
+  const status = deleted ? 'canceled' : subscription.status;
+  const periodEnd = new Date(subscription.current_period_end * 1000);
+  const live = status === 'active' || status === 'trialing' || (periodEnd > new Date() && (status === 'canceled' || status === 'past_due'));
+  const update = {
+    coach_tier: live ? tier : 'free',
+    coach_status: status,
+    coach_period_end: periodEnd.toISOString(),
+    coach_stripe_subscription_id: subscription.id,
+    stripe_customer_id: String(subscription.customer),
+    updated_at: new Date().toISOString(),
+  };
+  const { data: bySub } = await supabase.from('profiles').select('id').eq('coach_stripe_subscription_id', subscription.id).maybeSingle();
+  const id = bySub?.id ?? userId;
+  if (!id) {
+    console.error('Webhook: coach subscription without user', subscription.id);
+    return reply({ received: true, note: 'no matching user' });
+  }
+  await supabase.from('profiles').update(update).eq('id', id);
+  return reply({ received: true });
+}
+
 interface ProfileUpdate {
   subscription_tier: 'free' | 'pro' | 'plus';
   subscription_status: string;
@@ -95,6 +123,7 @@ Deno.serve(async (req: Request) => {
       if (session.mode === 'subscription' && session.subscription && userId) {
         const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
         const subscription = await stripe.subscriptions.retrieve(subId);
+        if (subscription.metadata.kind === 'coach') return applyCoachSubscription(supabase, subscription, false);
         const tier = TIER_MAP[subscription.metadata.tier] ?? 'free';
         const periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
 
@@ -132,6 +161,9 @@ Deno.serve(async (req: Request) => {
       event.type === 'customer.subscription.deleted'
     ) {
       const subscription = event.data.object as Stripe.Subscription;
+      if (subscription.metadata.kind === 'coach') {
+        return applyCoachSubscription(supabase, subscription, event.type === 'customer.subscription.deleted');
+      }
       const tier = TIER_MAP[subscription.metadata.tier] ?? 'free';
       const isDeleted = event.type === 'customer.subscription.deleted';
       const status = isDeleted ? 'canceled' : subscription.status;

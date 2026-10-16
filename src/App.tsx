@@ -11,6 +11,8 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Welcome } from '@/screens/onboarding/Welcome';
 import { OnboardingSetup } from '@/screens/onboarding/OnboardingSetup';
 import { AuthScreen } from '@/screens/auth/AuthScreen';
+import { NewPasswordScreen } from '@/screens/auth/NewPasswordScreen';
+import { authLinkLanding } from '@/lib/supabase';
 import { Home } from '@/screens/home/Home';
 import { Training } from '@/screens/training/Training';
 import { ExerciseDetail } from '@/screens/training/ExerciseDetail';
@@ -37,7 +39,7 @@ import { I18nProvider, useI18n } from '@/lib/i18n';
 import { LanguagePicker } from '@/screens/onboarding/LanguagePicker';
 
 function AppContent() {
-  const { session, profile, loading, profileLoading } = useAuth();
+  const { session, profile, loading, profileLoading, recovering } = useAuth();
   const consent = useConsent();
   const { t, chosen: languageChosen } = useI18n();
   const navigate = useNavigate();
@@ -64,6 +66,13 @@ function AppContent() {
       </div>
     );
   }
+
+  // Back from a confirmation / reset link: the tokens were in the hash, which the router would read as a path.
+  if (session && authLinkLanding && /access_token|type=/.test(location.pathname + location.hash)) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (session && recovering) return <NewPasswordScreen />;
 
   // Public privacy policy — reachable signed in or out (App Store 5.1.1(i), Google Play User Data policy)
   if (location.pathname === '/privacy') {

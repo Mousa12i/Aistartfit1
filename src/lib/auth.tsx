@@ -10,6 +10,8 @@ interface AuthState {
   loading: boolean;
   profileLoading: boolean;
   isConfigured: boolean;
+  /** Opened from a password-reset link: the person must choose a new password. */
+  recovering: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -17,8 +19,15 @@ interface AuthContextValue extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
+  resendConfirmation: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: string | null }>;
+}
+
+/** Where auth emails send people back to: this site (never a developer's localhost). */
+function appUrl(): string {
+  return `${window.location.origin}${window.location.pathname}`;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -31,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading: true,
     profileLoading: false,
     isConfigured: isSupabaseConfigured,
+    recovering: false,
   });
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -67,7 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setState((prev) => ({ ...prev, recovering: true }));
       (async () => {
         setState((prev) => ({
           ...prev,
@@ -93,11 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName }, emailRedirectTo: window.location.origin },
+      options: { data: { display_name: displayName }, emailRedirectTo: appUrl() },
     });
     if (error) return { error: error.message };
-    if (!data.session && data.user) {
-      return { error: null };
+    // Supabase hides whether an email is registered: an existing address comes back with no identities.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      return { error: 'already_registered' };
     }
     return { error: null };
   }, []);
@@ -114,8 +126,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetPassword = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: appUrl() });
     if (error) return { error: error.message };
+    return { error: null };
+  }, []);
+
+  const resendConfirmation = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: appUrl() } });
+    if (error) return { error: error.message };
+    return { error: null };
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { error: error.message };
+    setState((prev) => ({ ...prev, recovering: false }));
     return { error: null };
   }, []);
 
@@ -144,6 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signOut,
         resetPassword,
+        resendConfirmation,
+        updatePassword,
         refreshProfile,
         updateProfile,
       }}

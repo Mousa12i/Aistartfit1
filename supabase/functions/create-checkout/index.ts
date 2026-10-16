@@ -27,6 +27,13 @@ const dailyPass = {
   price: 149,
 };
 
+// Coach plans: athletes a coach can have (the database enforces the same limits: coach_tier_limit()).
+const coachPlans = {
+  coach: { name: 'StartFit Coach (up to 25 athletes)', monthly: 1900, annual: 19000 },
+  coach_pro: { name: 'StartFit Coach Pro (up to 60 athletes)', monthly: 3900, annual: 39000 },
+  studio: { name: 'StartFit Studio (up to 150 athletes, your branding)', monthly: 7900, annual: 79000 },
+} as const;
+
 type Tier = keyof typeof plans;
 type Billing = 'weekly' | 'monthly' | 'annual';
 
@@ -87,6 +94,34 @@ Deno.serve(async (req: Request) => {
 
       if (!session.url) return response({ error: 'Unable to start checkout.' }, 502);
       return response({ url: session.url });
+    }
+
+    // Coach plan — a separate subscription from the person's own Pro / Pro+ plan.
+    if (body.type === 'coach') {
+      const coachTier = body.tier as keyof typeof coachPlans;
+      const coachBilling = body.billing === 'annual' ? 'annual' : body.billing === 'monthly' ? 'monthly' : null;
+      if (!(coachTier in coachPlans) || !coachBilling) return response({ error: 'Choose a valid coach plan.' }, 400);
+      const cp = coachPlans[coachTier];
+      const coachSession = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer_email: user.email,
+        client_reference_id: user.id,
+        line_items: [{
+          quantity: 1,
+          price_data: {
+            currency: 'gbp',
+            unit_amount: cp[coachBilling],
+            product_data: { name: cp.name },
+            recurring: { interval: coachBilling === 'annual' ? 'year' : 'month' },
+          },
+        }],
+        subscription_data: { metadata: { user_id: user.id, kind: 'coach', coach_tier: coachTier } },
+        metadata: { kind: 'coach' },
+        success_url: `${origin}/#/coach?checkout=success`,
+        cancel_url: `${origin}/#/coach?checkout=cancelled`,
+      });
+      if (!coachSession.url) return response({ error: 'Unable to start checkout.' }, 502);
+      return response({ url: coachSession.url });
     }
 
     const tier = body.tier as Tier;

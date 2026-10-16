@@ -81,6 +81,23 @@ export const en = {
   'settings.title': 'Settings',
   'settings.preferences': 'Preferences',
 
+  // ---- auth (links and errors) ----
+  'auth.notConfirmed': "Your email is not confirmed yet. Open the link we emailed you, or send a new one below.",
+  'auth.badCredentials': "The email or password is not right.",
+  'auth.alreadyRegistered': "This email already has an account. Sign in, or reset your password.",
+  'auth.rateLimited': "Too many tries in a short time. Please wait a minute and try again.",
+  'auth.resend': "Send the confirmation email again",
+  'auth.resent': "A new confirmation link was sent to {email}. Check spam too.",
+  'auth.checkEmail': "Almost done! We sent a confirmation link to {email}. Open it on any device, then sign in here.",
+  'auth.linkExpired': "That link has expired or was already used. Enter your email and send a new one.",
+  'auth.linkError': "That link did not work. Please try again.",
+  'auth.newPasswordTitle': "Choose a new password",
+  'auth.newPasswordSubtitle': "Type it twice so there are no typos.",
+  'auth.newPassword': "New password",
+  'auth.confirmPassword': "Repeat the password",
+  'auth.savePassword': "Save password",
+  'auth.passwordMismatch': "The two passwords are not the same.",
+
   // ---- goal plan ----
   'goal.title': 'Goal plan',
   'goal.subtitle': 'Cut, bulk or lose weight, built from your own data',
