@@ -3,7 +3,6 @@ import { HashRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'r
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { EntitlementsProvider } from '@/lib/entitlements-context';
 import { AppShell } from '@/components/AppShell';
-import { DiscountBadge } from '@/components/ui/DiscountBadge';
 import { FloatingCoach } from '@/components/ui/FloatingCoach';
 import type { Tab } from '@/lib/types';
 
@@ -159,6 +158,7 @@ function AppContent() {
       case 'start-exercise': navigate(`/workout/free?exercise=${screen.exerciseId}`); break;
       case 'routine-generator': navigate('/routine-generator'); break;
       case 'memory': navigate('/memory'); break;
+      case 'goal-plan': navigate('/nutrition/goal'); break;
     }
   };
 
@@ -217,7 +217,6 @@ function AppContent() {
       {/* On the nutrition coach page these overlays are only hidden (not unmounted) so they keep their state. */}
       {!fullScreenRoute && !hasOwnActionBar && (
         <div className={isNutritionCoach ? 'hidden' : undefined}>
-          <DiscountBadge />
           <FloatingCoach />
         </div>
       )}

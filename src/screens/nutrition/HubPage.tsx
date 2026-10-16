@@ -28,6 +28,7 @@ import { GOAL_LABELS } from '@/lib/nutrition/engine';
 import { buildInsights, loggingStreak, proteinMealsHit, summarizeDay, type Insight } from '@/lib/nutrition/insights';
 import { useNutrition } from './NutritionContext';
 import { useNutritionNav, type NutritionPage } from './nav';
+import { GoalEntryCard } from './GoalPage';
 import { MACRO_COLORS, MacroBar, Notice, Page, PageHeader, Panel, Ring, Section, SetupRequired, Skeleton, Toast, fmt } from './ui';
 
 export function HubPage() {
@@ -175,6 +176,12 @@ export function HubPage() {
           <button type="button" onClick={() => go('add', { meal: 'pre_workout', date: today })} className="flex-shrink-0 text-xs font-semibold text-lime">
             Log
           </button>
+        </div>
+      )}
+
+      {!n.noNumbers && (
+        <div className="mt-3">
+          <GoalEntryCard onOpen={() => go('goal')} />
         </div>
       )}
 

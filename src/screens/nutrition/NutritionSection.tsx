@@ -14,6 +14,7 @@ import { LibraryPage } from './LibraryPage';
 import { ReportsPage } from './ReportsPage';
 import { CheckInPage } from './CheckInPage';
 import { RecipesPage } from './RecipesPage';
+import { GoalPage } from './GoalPage';
 
 /** The Nutrition tab: one provider (shared data) and a page per sub-path. */
 export function NutritionSection() {
@@ -56,6 +57,8 @@ function NutritionPages() {
       return <CheckInPage />;
     case 'recipes':
       return <RecipesPage />;
+    case 'goal':
+      return <GoalPage />;
     default:
       return <HubPage />;
   }

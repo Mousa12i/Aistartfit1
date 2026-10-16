@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { GoalEntryCard } from '@/screens/nutrition/GoalPage';
 import { useAuth } from '@/lib/auth';
 import { fetchUserSessions, fetchWorkoutPlans } from '@/lib/data';
 import type { WorkoutSession, WorkoutPlan } from '@/lib/types';
@@ -126,6 +127,11 @@ export function Home({ onNavigate, onTabChange }: HomeProps) {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* One goal (cut, bulk, lose weight) -> calories, training and a timeline */}
+      <div className="px-5 mb-4">
+        <GoalEntryCard onOpen={() => onNavigate({ name: 'goal-plan' })} />
       </div>
 
       {/* Today's recovery decision */}
