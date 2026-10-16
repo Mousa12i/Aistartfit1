@@ -12,6 +12,11 @@ import { Welcome } from '@/screens/onboarding/Welcome';
 import { OnboardingSetup } from '@/screens/onboarding/OnboardingSetup';
 import { AuthScreen } from '@/screens/auth/AuthScreen';
 import { NewPasswordScreen } from '@/screens/auth/NewPasswordScreen';
+import { CoachHome } from '@/screens/coach/CoachHome';
+import { AthleteView } from '@/screens/coach/AthleteView';
+import { JoinRoute, MyCoach } from '@/screens/coach/MyCoach';
+import { RolePicker } from '@/screens/coach/RolePicker';
+import { normalizeCode } from '@/lib/coach/insights';
 import { authLinkLanding } from '@/lib/supabase';
 import { Home } from '@/screens/home/Home';
 import { Training } from '@/screens/training/Training';
@@ -81,6 +86,11 @@ function AppContent() {
 
   // Not authenticated — show welcome / auth
   if (!session) {
+    // An invite link opened before signing in: keep the coach code, then create the account.
+    if (location.pathname.startsWith('/join/')) {
+      try { localStorage.setItem('startfit.joinCode', normalizeCode(decodeURIComponent(location.pathname.slice(6)))); } catch { /* ignore */ }
+      return <AuthScreen initialMode="signup" onBack={() => navigate('/')} />;
+    }
     if (location.pathname === '/signin') {
       return <AuthScreen initialMode="signin" onBack={() => navigate('/')} />;
     }
@@ -128,6 +138,11 @@ function AppContent() {
   }
   if (consent.available && !consent.health) {
     return <HealthConsent />;
+  }
+
+  // Coach or athlete (asked once; an invite link already answers it).
+  if (profile && !profile.account_type && !location.pathname.startsWith('/join/')) {
+    return <RolePicker />;
   }
 
   // Authenticated but onboarding not completed
@@ -196,6 +211,8 @@ function AppContent() {
   // Exercise and routine pages have their own back button and a fixed action bar at the bottom.
   const hasOwnActionBar = isExerciseDetail || location.pathname.startsWith('/programme/');
   const hideNav = fullScreenRoute || isNutritionCoach || hasOwnActionBar;
+  // Coach screens have their own chat bar; the floating AI coach button would cover it.
+  const isCoachRoute = location.pathname.startsWith('/coach') || location.pathname.startsWith('/my-coach');
 
   return (
     <>
@@ -220,11 +237,15 @@ function AppContent() {
           <Route path="/recovery" element={<ErrorBoundary label="Recovery"><Recovery onBack={() => navigate('/')} /></ErrorBoundary>} />
           <Route path="/biometric-assessment" element={<BiometricAssessment onBack={() => navigate('/profile')} onComplete={() => navigate('/profile')} />} />
           <Route path="/routine-generator" element={<AiConsentRoute><RoutineGenerator onBack={() => navigate('/training')} /></AiConsentRoute>} />
+          <Route path="/coach" element={<ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
+          <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />
+          <Route path="/my-coach" element={<ErrorBoundary label="My coach"><MyCoach /></ErrorBoundary>} />
+          <Route path="/join/:code" element={<JoinRoute />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>
       {/* On the nutrition coach page these overlays are only hidden (not unmounted) so they keep their state. */}
-      {!fullScreenRoute && !hasOwnActionBar && (
+      {!fullScreenRoute && !hasOwnActionBar && !isCoachRoute && (
         <div className={isNutritionCoach ? 'hidden' : undefined}>
           <FloatingCoach />
         </div>

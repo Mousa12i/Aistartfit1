@@ -245,7 +245,7 @@ export function computeTargets(stats: BodyStats, settings: PlanSettings, ctx: Ta
   let kcal = maintenance + delta;
   if (settings.kcalOverride != null && settings.kcalOverride > 0 && !ctx.noWeightGoals) {
     kcal = settings.kcalOverride;
-    notes.push({ kind: 'info', text: 'Using the calorie target you set yourself.' });
+    notes.push({ kind: 'info', text: 'Using a fixed calorie target (set by you or your coach).' });
   }
 
   const floorKcal = safetyFloorKcal(bmr, stats.sex);

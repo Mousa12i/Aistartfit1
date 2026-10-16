@@ -36,6 +36,15 @@ export interface Profile {
   subscription_current_period_end: string | null;
   /** Language chosen right after sign-in (NULL until chosen). */
   preferred_language?: string | null;
+  /** Coach mode (NULL until the person picks). */
+  account_type?: 'athlete' | 'coach' | null;
+  coach_code?: string | null;
+  coach_tier?: 'free' | 'coach' | 'coach_pro' | 'studio';
+  coach_status?: string | null;
+  coach_period_end?: string | null;
+  coach_brand_name?: string | null;
+  coach_bio?: string | null;
+  coach_checkin_day?: number;
   created_at: string;
   updated_at: string;
 }

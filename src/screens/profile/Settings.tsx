@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConsent } from '@/lib/consent-context';
 import { deleteMyAccount } from '@/lib/privacy';
 import { LANGUAGES, useI18n } from '@/lib/i18n';
+import { becomeCoach, setAthleteRole } from '@/lib/coach/api';
 
 interface SettingsProps {
   onBack: () => void;
@@ -128,6 +129,9 @@ export function Settings({ onBack }: SettingsProps) {
             {langError && <p className="mt-2 text-xs text-rust">{langError}</p>}
           </Card>
         </div>
+
+        {/* Coach mode */}
+        <CoachModeCard />
 
         {/* Preferences */}
         <div>
@@ -359,6 +363,43 @@ function InfoRow({ icon, label, description }: { icon: React.ReactNode; label: s
         <p className="text-sm font-medium text-cloud">{label}</p>
         <p className="text-xs text-cloud-dim">{description}</p>
       </div>
+    </div>
+  );
+}
+
+/** Switch between "I train" and "I coach others" (a coach still has the whole app for their own training). */
+function CoachModeCard() {
+  const { profile, user, refreshProfile } = useAuth();
+  const { t, dir } = useI18n();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const isCoach = profile?.account_type === 'coach';
+  const toggle = async () => {
+    if (!user) return;
+    setBusy(true);
+    try {
+      if (isCoach) await setAthleteRole(user.id);
+      else await becomeCoach();
+      await refreshProfile();
+      if (!isCoach) navigate('/coach');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div dir={dir} data-testid="settings-coach">
+      <h3 className="text-sm font-semibold text-cloud mb-3">{t('coach.portal')}</h3>
+      <Card className="p-4">
+        <p className="text-xs text-cloud-dim mb-3">{isCoach ? t('coach.portalEntryBody') : t('coach.roleCoachBody')}</p>
+        <div className="flex gap-2">
+          {isCoach && (
+            <button type="button" onClick={() => navigate('/coach')} className="flex-1 rounded-xl bg-lime py-2.5 text-sm font-bold text-ink-bg">{t('coach.portal')}</button>
+          )}
+          <button type="button" disabled={busy} onClick={toggle} className="flex-1 rounded-xl border border-ink-border py-2.5 text-sm font-semibold text-cloud disabled:opacity-50">
+            {isCoach ? t('coach.roleAthlete') : t('coach.roleCoach')}
+          </button>
+        </div>
+      </Card>
     </div>
   );
 }
