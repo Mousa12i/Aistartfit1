@@ -14,6 +14,10 @@ import { AuthScreen } from '@/screens/auth/AuthScreen';
 import { NewPasswordScreen } from '@/screens/auth/NewPasswordScreen';
 import { CoachHome } from '@/screens/coach/CoachHome';
 import { WeekManager } from '@/screens/coach/WeekManager';
+import { CoachShell } from '@/components/CoachShell';
+import { CoachInbox } from '@/screens/coach/CoachInbox';
+import { CoachPrograms, CoachRoutineEditor } from '@/screens/coach/CoachPrograms';
+import { CoachAccount } from '@/screens/coach/CoachAccount';
 import { CoachRulesPage, CoachSetup } from '@/screens/coach/CoachSetup';
 import { COACH_TERMS_VERSION } from '@/lib/coach/api';
 import { AthleteView } from '@/screens/coach/AthleteView';
@@ -139,7 +143,8 @@ function AppContent() {
       </div>
     );
   }
-  if (consent.available && !consent.health) {
+  // Athletes agree to health-data processing before anything is collected; a coach account collects none of its own.
+  if (consent.available && !consent.health && profile?.account_type !== 'coach' && profile?.account_type != null) {
     return <HealthConsent />;
   }
 
@@ -166,6 +171,28 @@ function AppContent() {
   // Coaches set up their public profile and accept the coach rules before anything else (athletes cannot join before).
   if (isCoach && profile?.coach_terms_version !== COACH_TERMS_VERSION && location.pathname !== '/coach/rules') {
     return <CoachSetup />;
+  }
+
+  // A coach account is a work account: its own app (team, week, inbox, programs, account), nothing from the athlete app.
+  if (isCoach) {
+    const fullScreen = location.pathname === '/coach/profile';
+    return (
+      <CoachShell hideNav={fullScreen}>
+        <Routes>
+          <Route path="/" element={<ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
+          <Route path="/coach/week" element={<ErrorBoundary label="Week"><WeekManager /></ErrorBoundary>} />
+          <Route path="/coach/inbox" element={<ErrorBoundary label="Inbox"><CoachInbox /></ErrorBoundary>} />
+          <Route path="/coach/programs" element={<ErrorBoundary label="Programs"><CoachPrograms /></ErrorBoundary>} />
+          <Route path="/coach/programs/:id" element={<ErrorBoundary label="Routine"><CoachRoutineEditor /></ErrorBoundary>} />
+          <Route path="/coach/account" element={<ErrorBoundary label="Account"><CoachAccount /></ErrorBoundary>} />
+          <Route path="/coach/profile" element={<ErrorBoundary label="Coach profile"><CoachSetup mode="edit" /></ErrorBoundary>} />
+          <Route path="/coach/rules" element={<ErrorBoundary label="Coach rules"><CoachRulesPage /></ErrorBoundary>} />
+          <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />
+          <Route path="/settings" element={<Settings onBack={() => navigate('/coach/account')} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </CoachShell>
+    );
   }
 
   // Authenticated with onboarding complete — main app
@@ -211,7 +238,7 @@ function AppContent() {
   // Determine if we should hide bottom nav
   const hideNavRoutes = ['/workout/'];
   const fullScreenRoute = hideNavRoutes.some((r) => location.pathname.startsWith(r)) ||
-    location.pathname === '/onboarding-setup' || location.pathname === '/coach/profile';
+    location.pathname === '/onboarding-setup';
 
   // Determine if this is an exercise detail page (full-screen viewer)
   const isExerciseDetail = location.pathname.startsWith('/exercise/');
@@ -222,14 +249,13 @@ function AppContent() {
   const hasOwnActionBar = isExerciseDetail || location.pathname.startsWith('/programme/');
   const hideNav = fullScreenRoute || isNutritionCoach || hasOwnActionBar;
   // Coach screens have their own chat bar; the floating AI coach button would cover it.
-  const isCoachRoute = location.pathname.startsWith('/coach') || location.pathname.startsWith('/my-coach') || (isCoach && location.pathname === '/');
+  const isCoachRoute = location.pathname.startsWith('/coach') || location.pathname.startsWith('/my-coach');
 
   return (
     <>
-      <AppShell isCoach={isCoach} activeTab={activeTab} onTabChange={handleTabChange} onNavigate={(path) => navigate(path)} hideNav={hideNav}>
+      <AppShell activeTab={activeTab} onTabChange={handleTabChange} onNavigate={(path) => navigate(path)} hideNav={hideNav}>
         <Routes>
-          <Route path="/" element={isCoach ? <ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary> : <Home onNavigate={navigateToScreen} onTabChange={handleTabChange} />} />
-          <Route path="/me" element={<Home onNavigate={navigateToScreen} onTabChange={handleTabChange} />} />
+          <Route path="/" element={<Home onNavigate={navigateToScreen} onTabChange={handleTabChange} />} />
           <Route path="/home" element={<Navigate to="/" replace />} />
           <Route path="/training" element={<Training onNavigate={navigateToScreen} />} />
           <Route path="/training/coach" element={<ErrorBoundary label="Training coach"><TrainingCoach /></ErrorBoundary>} />
@@ -248,9 +274,7 @@ function AppContent() {
           <Route path="/recovery" element={<ErrorBoundary label="Recovery"><Recovery onBack={() => navigate('/')} /></ErrorBoundary>} />
           <Route path="/biometric-assessment" element={<BiometricAssessment onBack={() => navigate('/profile')} onComplete={() => navigate('/profile')} />} />
           <Route path="/routine-generator" element={<AiConsentRoute><RoutineGenerator onBack={() => navigate('/training')} /></AiConsentRoute>} />
-          <Route path="/coach" element={isCoach ? <Navigate to="/" replace /> : <ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
-          <Route path="/coach/profile" element={<ErrorBoundary label="Coach profile"><CoachSetup mode="edit" /></ErrorBoundary>} />
-          <Route path="/coach/rules" element={<ErrorBoundary label="Coach rules"><CoachRulesPage /></ErrorBoundary>} />
+          <Route path="/coach" element={<ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
           <Route path="/coach/week" element={<ErrorBoundary label="Week"><WeekManager /></ErrorBoundary>} />
           <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />
           <Route path="/my-coach" element={<ErrorBoundary label="My coach"><MyCoach /></ErrorBoundary>} />

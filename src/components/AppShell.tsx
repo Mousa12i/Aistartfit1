@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Users, Dumbbell, Layers, Play, HeartPulse, User, Home, Brain, Apple, TrendingUp, Settings, Search, type LucideIcon } from 'lucide-react';
+import { Dumbbell, Layers, Play, HeartPulse, User, Home, Brain, Apple, TrendingUp, Settings, Search, type LucideIcon } from 'lucide-react';
 import { NotificationBell } from './NotificationBell';
 import { cn } from '@/lib/utils';
 import { useEntitlements } from '@/lib/entitlements-context';
@@ -12,8 +12,6 @@ interface AppShellProps {
   onNavigate?: (path: string) => void;
   children: ReactNode;
   hideNav?: boolean;
-  /** Coach accounts: the centre tab and the first desktop link open the coach portal. */
-  isCoach?: boolean;
 }
 
 const TABS: { key: Tab; label: MessageKey; icon: LucideIcon }[] = [
@@ -36,9 +34,9 @@ const DESKTOP_NAV: { label: MessageKey; path: string; icon: LucideIcon; tab: Tab
   { label: 'nav.settings', path: '/settings', icon: Settings, tab: 'account' },
 ];
 
-export function AppShell({ activeTab, onTabChange, onNavigate, children, hideNav, isCoach }: AppShellProps) {
-  const tabs = isCoach ? TABS.map((tb) => (tb.key === 'workout' ? { ...tb, label: 'nav.team' as MessageKey, icon: Users } : tb)) : TABS;
-  const desktopNav = isCoach ? [{ label: 'nav.team' as MessageKey, path: '/', icon: Users, tab: 'workout' as Tab }, { ...DESKTOP_NAV[0], path: '/me' }, ...DESKTOP_NAV.slice(1)] : DESKTOP_NAV;
+export function AppShell({ activeTab, onTabChange, onNavigate, children, hideNav }: AppShellProps) {
+  const tabs = TABS;
+  const desktopNav = DESKTOP_NAV;
   const { tier } = useEntitlements();
   const { t, dir } = useI18n();
   const tierLabel = tier === 'plus' ? 'Pro+' : tier === 'pro' ? 'Pro' : t('tier.free');

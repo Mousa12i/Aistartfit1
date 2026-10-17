@@ -21,6 +21,7 @@ interface SettingsProps {
 
 export function Settings({ onBack }: SettingsProps) {
   const { profile, updateProfile, signOut } = useAuth();
+  const coachAccount = profile?.account_type === 'coach';
   const { t, lang, dir, setLanguage } = useI18n();
   const [langError, setLangError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -141,7 +142,7 @@ export function Settings({ onBack }: SettingsProps) {
         </div>
 
         {/* Coach mode */}
-        <CoachModeCard />
+        {!coachAccount && <CoachModeCard />}
 
         {/* Preferences */}
         <div>
@@ -159,7 +160,7 @@ export function Settings({ onBack }: SettingsProps) {
               />
               {notifError && <p className="px-4 pb-3 text-xs text-rust">{notifError}</p>}
             </div>
-            <div className="p-4">
+            {!coachAccount && <div className="p-4">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 rounded-lg bg-ink-elevated flex items-center justify-center text-cloud-dim">
                   <Globe className="w-4 h-4" />
@@ -189,7 +190,7 @@ export function Settings({ onBack }: SettingsProps) {
                   Imperial (lb, mi)
                 </button>
               </div>
-            </div>
+            </div>}
           </Card>
         </div>
 
@@ -198,7 +199,7 @@ export function Settings({ onBack }: SettingsProps) {
           <h3 className="text-sm font-semibold text-cloud mb-3">Privacy & Data</h3>
           <div data-testid="privacy-settings">
           <Card className="divide-y divide-ink-border">
-            <ToggleRow
+            {!coachAccount && <ToggleRow
               icon={<Bot className="w-4 h-4" />}
               label="AI coaches"
               description={consent.ai ? 'On — your messages and the data a coach needs are sent to OpenAI when you use a coach' : 'Off — nothing is sent to the AI provider'}
@@ -206,7 +207,7 @@ export function Settings({ onBack }: SettingsProps) {
               onToggle={() => void toggleAi()}
               loading={savingAi || !consent.available}
               testId="toggle-ai"
-            />
+            />}
             <button
               type="button"
               onClick={() => navigate('/privacy')}
