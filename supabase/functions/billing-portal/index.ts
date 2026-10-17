@@ -72,11 +72,15 @@ Deno.serve(async (req: Request) => {
       return response({ error: 'Invalid origin.' }, 400);
     }
 
+    // Coaches come back to their account page; everyone else to their profile.
+    const body = await req.json().catch(() => ({})) as { from?: unknown };
+    const back = body?.from === 'coach' ? '/#/coach/account' : '/#/profile';
+
     const stripe = new Stripe(secret, { apiVersion: '2024-12-18.acacia' });
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       configuration: await portalConfiguration(stripe, origin),
-      return_url: `${origin}/#/profile`,
+      return_url: `${origin}${back}`,
     });
 
     return response({ url: session.url });

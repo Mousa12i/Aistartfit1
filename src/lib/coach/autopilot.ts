@@ -365,8 +365,9 @@ export function loadUps(plan: PlanInfo | null, logs: LoggedSet[]): LoadUp[] {
 /** Adults are advised 7 h or more a night (Watson 2015, AASM/SRS consensus). Needs ≥ 4 logged nights in the last 7 days. */
 export const SLEEP_RULES = { advisedHours: 7, minNights: 4 } as const;
 
+/** Average sleep over the last 7 nights (today and the 6 days before it). */
 export function sleepSummary(nights: { date: string; hours: number }[], today: string): { avgHours: number; nights: number } | null {
-  const start = addDays(today, -7);
+  const start = addDays(today, -6);
   const recent = nights.filter((n) => n.date >= start && n.date <= today && n.hours > 0);
   if (recent.length < SLEEP_RULES.minNights) return null;
   return { avgHours: Math.round((recent.reduce((a, n) => a + n.hours, 0) / recent.length) * 10) / 10, nights: recent.length };

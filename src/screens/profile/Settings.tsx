@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useConsent } from '@/lib/consent-context';
 import { deleteMyAccount } from '@/lib/privacy';
 import { LANGUAGES, useI18n } from '@/lib/i18n';
-import { becomeCoach, setAthleteRole } from '@/lib/coach/api';
+import { becomeCoach, coachErrorKey, setAthleteRole } from '@/lib/coach/api';
 import { disablePush, enablePush, pushState, type PushState } from '@/lib/push';
 
 interface SettingsProps {
@@ -388,17 +388,26 @@ function CoachModeCard() {
   const { t, dir } = useI18n();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
   const isCoach = profile?.account_type === 'coach';
   const toggle = async () => {
     if (!user) return;
+    // Leaving coach mode needs a second tap: the database refuses it while athletes are linked or a coach plan runs.
+    if (isCoach && !confirm) { setConfirm(true); return; }
     setBusy(true);
+    setErr(null);
     try {
       if (isCoach) await setAthleteRole(user.id);
       else await becomeCoach();
       await refreshProfile();
       if (!isCoach) navigate('/coach');
+    } catch (e) {
+      const k = coachErrorKey(e);
+      setErr(k === 'coach_has_athletes' ? t('coach.switchBlockedAthletes') : k === 'coach_subscription_active' ? t('coach.switchBlockedPlan') : t('coach.saveError'));
     } finally {
       setBusy(false);
+      setConfirm(false);
     }
   };
   return (
@@ -411,9 +420,11 @@ function CoachModeCard() {
             <button type="button" onClick={() => navigate('/coach')} className="flex-1 rounded-xl bg-lime py-2.5 text-sm font-bold text-ink-bg">{t('coach.portal')}</button>
           )}
           <button type="button" disabled={busy} onClick={toggle} className="flex-1 rounded-xl border border-ink-border py-2.5 text-sm font-semibold text-cloud disabled:opacity-50">
-            {isCoach ? t('coach.roleAthlete') : t('coach.roleCoach')}
+            {isCoach ? (confirm ? t('coach.switchConfirmBtn') : t('coach.roleAthlete')) : t('coach.roleCoach')}
           </button>
         </div>
+        {confirm && <p className="mt-2 text-xs text-cloud-dim" data-testid="switch-confirm">{t('coach.switchConfirm')}</p>}
+        {err && <p className="mt-2 rounded-xl bg-rust/10 px-3 py-2 text-xs text-rust" data-testid="switch-error">{err}</p>}
       </Card>
     </div>
   );

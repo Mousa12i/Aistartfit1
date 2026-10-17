@@ -74,6 +74,17 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
     }
   };
 
+  // Leaving the screen mid-recording: stop the timer and release the microphone (nothing is sent).
+  useEffect(() => () => {
+    const r = recRef.current;
+    if (!r) return;
+    window.clearInterval(r.timer);
+    r.rec.onstop = null;
+    try { if (r.rec.state !== 'inactive') r.rec.stop(); } catch { /* already stopped */ }
+    r.stream.getTracks().forEach((tr) => tr.stop());
+    recRef.current = null;
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const list = await listMessages(coachId, athleteId);
@@ -187,6 +198,8 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={1}
+          maxLength={4000}
+          dir="auto"
           placeholder={t('coach.messagePlaceholder')}
           data-testid="chat-input"
           className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-sm text-cloud placeholder:text-cloud-muted focus:outline-none"

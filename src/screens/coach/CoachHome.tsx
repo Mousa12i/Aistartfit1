@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CalendarCheck, Check, ChevronLeft, ChevronRight, ClipboardCheck, Copy, MessageCircle, Search, Settings2, Share2, Sparkles, UserPlus, AlertTriangle } from 'lucide-react';
+import { BarChart3, CalendarCheck, Check, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Copy, MessageCircle, Search, Settings2, Share2, Sparkles, Stethoscope, UserPlus, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
@@ -164,6 +164,18 @@ export function CoachHome() {
       )}
 
       {roster && count > 0 && (
+        <button type="button" onClick={() => navigate('/coach/business')} data-testid="business-entry"
+          className="-mt-3 mb-5 flex w-full items-center gap-3 rounded-2xl border border-ink-border bg-ink-surface px-4 py-3 text-start">
+          <BarChart3 className="h-5 w-5 flex-shrink-0 text-sky" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-cloud">{t('biz.title')}</span>
+            <span className="block text-xs text-cloud-dim">{t('biz.entry')}</span>
+          </span>
+          <ChevronRight className="h-5 w-5 text-cloud-muted rtl:rotate-180" />
+        </button>
+      )}
+
+      {roster && count > 0 && (
         <section className="mb-6" aria-labelledby="needs-you">
           <h2 id="needs-you" className="mb-2 text-sm font-semibold text-cloud">{t('coach.needsYou')}</h2>
           {items.length === 0 ? (
@@ -308,7 +320,9 @@ function Kpi({ value, label, tone }: { value: string | number; label: string; to
 
 function TriageRow({ item, first, onOpen, t }: { item: TriageItem; first: boolean; onOpen: (id: string, tab?: string) => void; t: (k: MessageKey, v?: Record<string, string | number>) => string }) {
   const conf = {
-    message: { icon: MessageCircle, tone: 'text-sky', text: t('coach.triageMessage', { n: item.count ?? 1 }), tab: 'chat', action: t('coach.reply') },
+    screening: { icon: Stethoscope, tone: item.outcome === 'stop_and_clearance' ? 'text-rust' : 'text-gold', text: item.outcome ? t(`coach.outcome_${item.outcome}` as MessageKey) : '', tab: 'overview', action: t('coach.view') },
+    message: { icon: MessageCircle, tone: 'text-sky', text: t('coach.triageMessage', { n: item.count ?? 1 }) + (item.waitingHours != null && item.waitingHours >= 1 ? ` · ${t('coach.waitingH', { h: item.waitingHours })}` : ''), tab: 'chat', action: t('coach.reply') },
+    intake: { icon: ClipboardList, tone: 'text-sky', text: t('coach.triageIntake'), tab: 'overview', action: t('coach.view') },
     checkin: { icon: ClipboardCheck, tone: 'text-lime', text: t('coach.triageCheckin'), tab: 'checkins', action: t('coach.review') },
     at_risk: { icon: AlertTriangle, tone: 'text-rust', text: item.reasons?.[0] ? reasonText(item.reasons[0], t) : t('coach.riskAtRisk'), tab: 'chat', action: t('coach.reachOut') },
     new: { icon: UserPlus, tone: 'text-gold', text: t('coach.triageNew'), tab: 'overview', action: t('coach.welcome') },
@@ -356,7 +370,7 @@ function RosterCard({ row, activity, now, onOpen, t }: { row: RosterRow; activit
         <div className="mt-3 flex items-end justify-between gap-3">
           <PulseStrip trainDates={activity?.train_dates ?? []} foodDates={activity?.food_dates ?? []} now={now} label={t('coach.pulseLabel', { sessions: row.workouts_7d, days: row.food_days_7d })} />
           <div className="text-end text-[11px] tabular-nums text-cloud-dim" dir="ltr">
-            {last ? `${Number(last).toFixed(1)} kg` : ''}
+            {last ? t('coach.unitKg', { n: Number(last).toFixed(1) }) : ''}
           </div>
         </div>
       </button>

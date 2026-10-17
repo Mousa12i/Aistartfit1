@@ -11,7 +11,9 @@ import { translate } from './index';
 import { LANGUAGES } from './languages';
 
 const ALL = { ar, es, fr, de, pt, tr, it: itMsgs };
-const placeholders = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join(',');
+// A plural block {n, plural, one {…} other {# …}} counts as the placeholder {n}.
+const flat = (s: string) => s.replace(/\{(\w+), plural, (?:[a-z]+ \{[^{}]*\}\s*)+\}/g, '{$1}');
+const placeholders = (s: string) => [...new Set(flat(s).match(/\{\w+\}/g) ?? [])].sort().join(',');
 
 describe('languages', () => {
   it('every language writes every English text, with the same placeholders', () => {
@@ -33,5 +35,13 @@ describe('languages', () => {
   it('falls back to English and fills placeholders', () => {
     expect(translate('ar', 'nav.home')).toBe('الرئيسية');
     expect(translate('de', 'common.save')).toBe('Speichern');
+  });
+  it('picks Arabic plural forms (CLDR categories)', () => {
+    const k = 'coach.daysAgo' as const;
+    expect(translate('ar', k, { days: 2 })).toBe('قبل يومين');
+    expect(translate('ar', k, { days: 3 })).toBe('قبل 3 أيام');
+    expect(translate('ar', k, { days: 11 })).toBe('قبل 11 يومًا');
+    expect(translate('ar', k, { days: 100 })).toBe('قبل 100 يوم');
+    expect(translate('en', k, { days: 3 })).toBe('3 days ago');
   });
 });

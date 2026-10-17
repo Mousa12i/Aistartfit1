@@ -3,8 +3,12 @@
 
 import { supabase } from '../supabase';
 import type { RosterRow } from './insights';
+import type { Glance } from './checkin-glance';
+import { screeningOutcome, type CoachIntake } from './screening';
 
 const BUCKET = 'coach-media';
+
+const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function fail(error: { message?: string } | null | undefined): never {
   throw new Error(error?.message ?? 'Something went wrong');
@@ -13,7 +17,7 @@ function fail(error: { message?: string } | null | undefined): never {
 /** Turns a database error code into a key the screens translate. */
 export function coachErrorKey(err: unknown): string {
   const m = err instanceof Error ? err.message : String(err);
-  for (const code of ['code_not_found', 'own_code', 'already_has_coach', 'coach_full', 'not_your_athlete', 'kcal_out_of_range', 'protein_out_of_range', 'coach_not_ready']) {
+  for (const code of ['code_not_found', 'own_code', 'already_has_coach', 'coach_full', 'not_your_athlete', 'kcal_out_of_range', 'protein_out_of_range', 'coach_not_ready', 'coach_has_athletes', 'coach_subscription_active', 'athlete_ai_consent', 'daily_limit_reached', 'not_configured']) {
     if (m.includes(code)) return code;
   }
   return 'generic';
@@ -192,8 +196,15 @@ export async function fetchMyCoach(): Promise<MyCoach | null> {
   return ((data as MyCoach[] | null) ?? [])[0] ?? null;
 }
 
+/** The coach's calendar day and time zone, so "today" and "last 7 days" match what the coach sees on the clock. */
+export function localDay(now = new Date()): { today: string; tz: string | null } {
+  let tz: string | null = null;
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { tz = null; }
+  return { today: isoDate(now), tz };
+}
+
 export async function fetchRoster(): Promise<RosterRow[]> {
-  const { data, error } = await supabase.rpc('coach_roster');
+  const { data, error } = await supabase.rpc('coach_roster_v2', localDay());
   if (error) fail(error);
   return ((data as RosterRow[] | null) ?? []).map((r) => ({
     ...r,
@@ -204,6 +215,8 @@ export async function fetchRoster(): Promise<RosterRow[]> {
     protein_today: Number(r.protein_today ?? 0),
     unread: Number(r.unread ?? 0),
     pending_checkins: Number(r.pending_checkins ?? 0),
+    planned_per_week: r.planned_per_week == null ? null : Number(r.planned_per_week),
+    intake_outcome: r.intake_outcome ?? null,
   }));
 }
 
@@ -225,8 +238,6 @@ export interface AthleteDetail {
   plan: ActivePlan | null;
   daily: DailyCheckinRow[];
 }
-
-const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export async function loadAthleteDetail(athleteId: string, now = new Date()): Promise<AthleteDetail> {
   const since28 = new Date(now.getTime() - 28 * 86400000).toISOString();
@@ -507,9 +518,98 @@ export async function startCoachCheckout(tier: 'coach' | 'coach_pro' | 'studio',
 export interface Activity { athlete_id: string; train_dates: string[]; food_dates: string[]; weights: { d: string; kg: number }[] }
 
 export async function fetchRosterActivity(): Promise<Record<string, Activity>> {
-  const { data, error } = await supabase.rpc('coach_roster_activity');
+  const { data, error } = await supabase.rpc('coach_roster_activity_v2', localDay());
   if (error) fail(error);
   const out: Record<string, Activity> = {};
   for (const a of (data ?? []) as Activity[]) out[a.athlete_id] = { ...a, weights: (a.weights ?? []).map((w) => ({ d: String(w.d), kg: Number(w.kg) })) };
   return out;
+}
+
+// ---------------- billing portal (coach) ----------------
+
+export async function openCoachBillingPortal(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Please sign in first.');
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/billing-portal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ from: 'coach' }),
+  });
+  const body = await response.json().catch(() => ({})) as { url?: unknown; error?: unknown };
+  if (!response.ok || typeof body.url !== 'string') throw new Error(typeof body.error === 'string' ? body.error : 'billing_portal');
+  return body.url;
+}
+
+// ---------------- intake and health screening ----------------
+
+export async function saveIntakeQuestions(userId: string, questions: string[]): Promise<void> {
+  const { error } = await supabase.from('profiles').update({ coach_intake_questions: questions }).eq('id', userId);
+  if (error) fail(error);
+}
+
+export async function myCoachIntakeQuestions(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('my_coach_intake_questions');
+  if (error) fail(error);
+  return Array.isArray(data) ? (data as unknown[]).map(String) : [];
+}
+
+export async function loadIntake(coachId: string, athleteId: string): Promise<CoachIntake | null> {
+  const { data, error } = await supabase.from('coach_intakes').select('*').eq('coach_id', coachId).eq('athlete_id', athleteId).maybeSingle();
+  if (error) fail(error);
+  return (data as CoachIntake | null) ?? null;
+}
+
+export type IntakeInput = Pick<CoachIntake, 'answers' | 'goal' | 'days_per_week' | 'minutes_per_session' | 'equipment' | 'injuries' | 'exercises_regularly' | 'known_disease' | 'symptoms' | 'pregnant'>;
+
+/** The athlete sends (or updates) their intake. The outcome is recomputed by the database. */
+export async function submitIntake(coachId: string, athleteId: string, input: IntakeInput): Promise<void> {
+  const outcome = screeningOutcome({ exercisesRegularly: input.exercises_regularly, knownDisease: input.known_disease, symptoms: input.symptoms });
+  const { error } = await supabase.from('coach_intakes').upsert(
+    { coach_id: coachId, athlete_id: athleteId, ...input, outcome, consented_at: new Date().toISOString() },
+    { onConflict: 'coach_id,athlete_id' },
+  );
+  if (error) fail(error);
+}
+
+// ---------------- business numbers ----------------
+
+export interface BusinessStats {
+  active: number; joined_30d: number; left_30d: number; ever: number;
+  median_tenure_days: number | null; retained_90d: number; eligible_90d: number;
+  checkins_8w: number; reviewed_8w: number; median_review_hours: number | null;
+  waiting_replies: number; oldest_wait_hours: number | null;
+}
+
+export async function coachBusinessStats(): Promise<BusinessStats> {
+  const { data, error } = await supabase.rpc('coach_business_stats');
+  if (error) fail(error);
+  const d = (data ?? {}) as Record<string, unknown>;
+  const n = (k: string) => Number(d[k] ?? 0);
+  const nn = (k: string) => (d[k] == null ? null : Number(d[k]));
+  return {
+    active: n('active'), joined_30d: n('joined_30d'), left_30d: n('left_30d'), ever: n('ever'),
+    median_tenure_days: nn('median_tenure_days'), retained_90d: n('retained_90d'), eligible_90d: n('eligible_90d'),
+    checkins_8w: n('checkins_8w'), reviewed_8w: n('reviewed_8w'), median_review_hours: nn('median_review_hours'),
+    waiting_replies: n('waiting_replies'), oldest_wait_hours: nn('oldest_wait_hours'),
+  };
+}
+
+// ---------------- AI draft of a check-in reply ----------------
+
+export async function draftCheckinReply(checkinId: string, glance: Glance): Promise<{ reply: string; used: number; limit: number }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('auth_required');
+  const numbers = {
+    weightDelta: glance.weightDelta, waistDelta: glance.waistDelta, daysSincePrev: glance.daysSincePrev, sessions: glance.sessions, planned: glance.planned,
+    foodDays: glance.foodDays, avgKcal: glance.avgKcal, avgProtein: glance.avgProtein, kcalTarget: glance.kcalTarget, kcalVsTargetPct: glance.kcalVsTargetPct,
+    sleepAvg: glance.sleepAvg, sleepNights: glance.sleepNights, habitPct: glance.habitPct,
+  };
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/coach-assist`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ checkinId, glance: numbers }),
+  });
+  const body = await response.json().catch(() => ({})) as { reply?: unknown; used?: unknown; limit?: unknown; error?: unknown };
+  if (!response.ok || typeof body.reply !== 'string') throw new Error(typeof body.error === 'string' ? body.error : 'ai_failed');
+  return { reply: body.reply, used: Number(body.used ?? 0), limit: Number(body.limit ?? 0) };
 }

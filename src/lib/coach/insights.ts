@@ -28,6 +28,23 @@ export interface RosterRow {
   unread: number;
   pending_checkins: number;
   last_checkin_at: string | null;
+  /** Sessions per week in the athlete's active plan (null: no plan, the default of 3 is used). */
+  planned_per_week?: number | null;
+  last_message_at?: string | null;
+  last_message_preview?: string | null;
+  /** True when the last message in the thread is from the athlete (waiting for the coach). */
+  last_message_from_athlete?: boolean | null;
+  /** ACSM pre-participation screening outcome from the intake form (null: not filled in yet). */
+  intake_outcome?: IntakeOutcome | null;
+}
+
+export type IntakeOutcome = 'no_clearance' | 'clearance_before_vigorous' | 'clearance' | 'stop_and_clearance';
+
+/** Sessions per week used when the athlete has no plan. */
+export const DEFAULT_PLANNED_PER_WEEK = 3;
+export function plannedPerWeek(row: Pick<RosterRow, 'planned_per_week'>): number {
+  const n = Number(row.planned_per_week);
+  return Number.isFinite(n) && n >= 1 && n <= 14 ? n : DEFAULT_PLANNED_PER_WEEK;
 }
 
 export type RiskLevel = 'ok' | 'watch' | 'at_risk';
@@ -53,8 +70,18 @@ export interface Signals {
 
 const DAY = 86400000;
 
+/** Calendar days between two moments in local time (yesterday 23:00 -> today 08:00 is 1 day, not 0). */
 export function daysBetween(fromIso: string, now: Date): number {
-  return Math.max(0, Math.floor((now.getTime() - new Date(fromIso).getTime()) / DAY));
+  const from = new Date(fromIso);
+  if (Number.isNaN(from.getTime())) return 0;
+  const a = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.round((b - a) / DAY));
+}
+
+/** Whole hours since a moment (for reply waiting times). */
+export function hoursSince(iso: string, now: Date): number {
+  return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 3600000));
 }
 
 /** StartFit rule thresholds. */
@@ -67,7 +94,7 @@ export const RULES = {
   newAthleteDays: 3,
 } as const;
 
-export function athleteSignals(row: RosterRow, now: Date, plannedPerWeek = 3): Signals {
+export function athleteSignals(row: RosterRow, now: Date, planned = plannedPerWeek(row)): Signals {
   const reasons: Reason[] = [];
   let score = 0;
   const memberDays = daysBetween(row.joined_at, now);
@@ -98,7 +125,9 @@ export function athleteSignals(row: RosterRow, now: Date, plannedPerWeek = 3): S
     score += 15;
   }
 
-  if (memberDays >= 28 && row.workouts_28d < RULES.minSessions28d) {
+  // Fewer than half the planned sessions over 4 weeks (at least the fixed floor).
+  const min28 = Math.max(RULES.minSessions28d, Math.ceil(planned * 4 * 0.5));
+  if (memberDays >= 28 && row.workouts_28d < min28) {
     reasons.push({ code: 'low_consistency', sessions: row.workouts_28d });
     score += 15;
   }
@@ -111,11 +140,11 @@ export function athleteSignals(row: RosterRow, now: Date, plannedPerWeek = 3): S
     reasons,
     daysSinceWorkout,
     foodConsistency: Math.min(1, row.food_days_7d / 7),
-    trainingConsistency: plannedPerWeek > 0 ? Math.min(1, row.workouts_7d / plannedPerWeek) : 0,
+    trainingConsistency: planned > 0 ? Math.min(1, row.workouts_7d / planned) : 0,
   };
 }
 
-export type TriageKind = 'message' | 'checkin' | 'at_risk' | 'new';
+export type TriageKind = 'screening' | 'message' | 'checkin' | 'at_risk' | 'intake' | 'new';
 
 export interface TriageItem {
   kind: TriageKind;
@@ -123,22 +152,36 @@ export interface TriageItem {
   name: string;
   count?: number;
   reasons?: Reason[];
+  /** For messages: hours the athlete has been waiting for a reply. */
+  waitingHours?: number;
+  outcome?: IntakeOutcome;
 }
 
-const ORDER: Record<TriageKind, number> = { message: 0, checkin: 1, at_risk: 2, new: 3 };
+const ORDER: Record<TriageKind, number> = { screening: 0, message: 1, checkin: 2, at_risk: 3, intake: 4, new: 5 };
+
+/** Screening outcomes the coach must act on before programming hard training. */
+export function needsClearance(o: IntakeOutcome | null | undefined): boolean {
+  return o === 'clearance' || o === 'stop_and_clearance' || o === 'clearance_before_vigorous';
+}
 
 /** The "needs you today" list: unread messages, check-ins to review, athletes at risk, new joiners. */
 export function triage(rows: RosterRow[], now: Date): TriageItem[] {
   const items: TriageItem[] = [];
   for (const r of rows) {
     const name = r.display_name?.trim() || '—';
-    if (r.unread > 0) items.push({ kind: 'message', athleteId: r.athlete_id, name, count: r.unread });
+    if (needsClearance(r.intake_outcome)) items.push({ kind: 'screening', athleteId: r.athlete_id, name, outcome: r.intake_outcome! });
+    if (r.unread > 0) {
+      const waitingHours = r.last_message_from_athlete && r.last_message_at ? hoursSince(r.last_message_at, now) : undefined;
+      items.push({ kind: 'message', athleteId: r.athlete_id, name, count: r.unread, waitingHours });
+    }
     if (r.pending_checkins > 0) items.push({ kind: 'checkin', athleteId: r.athlete_id, name, count: r.pending_checkins });
     const s = athleteSignals(r, now);
     if (s.level === 'at_risk') items.push({ kind: 'at_risk', athleteId: r.athlete_id, name, reasons: s.reasons });
-    if (daysBetween(r.joined_at, now) < RULES.newAthleteDays) items.push({ kind: 'new', athleteId: r.athlete_id, name });
+    if (r.intake_outcome === null && daysBetween(r.joined_at, now) <= 7) items.push({ kind: 'intake', athleteId: r.athlete_id, name });
+    else if (daysBetween(r.joined_at, now) < RULES.newAthleteDays) items.push({ kind: 'new', athleteId: r.athlete_id, name });
   }
-  return items.sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.name.localeCompare(b.name));
+  // Longest wait first among messages; then by name.
+  return items.sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || (b.waitingHours ?? 0) - (a.waitingHours ?? 0) || a.name.localeCompare(b.name));
 }
 
 export interface RosterSummary {

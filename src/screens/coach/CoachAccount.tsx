@@ -1,23 +1,50 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, CreditCard, FileText, LogOut, MessageSquareText, Settings, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { ChevronRight, CreditCard, Dumbbell, FileText, LogOut, MessageSquareText, Settings, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
-import { COACH_TERMS_VERSION, type CoachProfile } from '@/lib/coach/api';
+import { COACH_TERMS_VERSION, coachErrorKey, openCoachBillingPortal, setAthleteRole, type CoachProfile } from '@/lib/coach/api';
 import { COACH_LIMITS, coachTierNow } from '@/lib/coach/insights';
 import { CoachProfileCard } from './CoachProfileCard';
 import { CoachSettingsSheet } from './CoachSettingsSheet';
+import { Sheet } from './ui';
 
 const TIER_KEY: Record<string, MessageKey> = { free: 'coach.planFree', coach: 'coach.planCoach', coach_pro: 'coach.planCoachPro', studio: 'coach.planStudio' };
 
 /** /coach/account: the coach's profile, plan, coaching settings, rules and app settings. */
 export function CoachAccount() {
   const navigate = useNavigate();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const { t, dir } = useI18n();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [portalErr, setPortalErr] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchErr, setSwitchErr] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
   if (!profile) return null;
   const tier = coachTierNow(profile.coach_tier, profile.coach_period_end);
+  const paid = profile.coach_tier === 'coach' || profile.coach_tier === 'coach_pro' || profile.coach_tier === 'studio';
+  const switchToTraining = async () => {
+    if (!user) return;
+    setSwitching(true);
+    setSwitchErr(null);
+    try {
+      await setAthleteRole(user.id);
+      await refreshProfile();
+      navigate('/');
+    } catch (e) {
+      const k = coachErrorKey(e);
+      setSwitchErr(k === 'coach_has_athletes' ? t('coach.switchBlockedAthletes') : k === 'coach_subscription_active' ? t('coach.switchBlockedPlan') : t('coach.saveError'));
+    } finally {
+      setSwitching(false);
+    }
+  };
+  const openPortal = async () => {
+    setPortalBusy(true);
+    setPortalErr(false);
+    try { window.location.href = await openCoachBillingPortal(); } catch { setPortalErr(true); setPortalBusy(false); }
+  };
 
   const card: CoachProfile = {
     coach_id: profile.id, display_name: profile.display_name, brand_name: profile.coach_brand_name ?? null, bio: profile.coach_bio ?? null,
@@ -30,9 +57,11 @@ export function CoachAccount() {
   const rows: { icon: LucideIcon; label: string; sub?: string; onClick: () => void; testId?: string }[] = [
     { icon: UserRound, label: t('coach.editProfile'), onClick: () => navigate('/coach/profile'), testId: 'acct-edit-profile' },
     { icon: CreditCard, label: t('coach.planBilling'), sub: `${t(TIER_KEY[tier])} · ${t('coach.upToAthletes', { n: COACH_LIMITS[tier] })}`, onClick: () => navigate('/?plans=1'), testId: 'acct-plan' },
+    ...(paid ? [{ icon: CreditCard, label: portalBusy ? '…' : t('coach.manageSub'), sub: t('coach.manageSubSub'), onClick: openPortal, testId: 'acct-manage-sub' }] : []),
     { icon: MessageSquareText, label: t('coach.checkinReplies'), onClick: () => setSettingsOpen(true), testId: 'acct-coach-settings' },
     { icon: ShieldCheck, label: t('coach.viewRules'), onClick: () => navigate('/coach/rules') },
     { icon: Settings, label: t('coach.appSettings'), onClick: () => navigate('/settings'), testId: 'acct-app-settings' },
+    { icon: Dumbbell, label: t('coach.switchToTraining'), sub: t('coach.switchToTrainingSub'), onClick: () => { setSwitchErr(null); setSwitchOpen(true); }, testId: 'acct-switch' },
     { icon: FileText, label: t('coach.privacyPolicy'), onClick: () => navigate('/privacy') },
   ];
 
@@ -56,10 +85,17 @@ export function CoachAccount() {
           </li>
         ))}
       </ul>
+      {portalErr && <p className="mt-2 rounded-xl bg-rust/10 px-3 py-2 text-xs text-rust" data-testid="portal-error">{t('coach.portalError')}</p>}
 
       <button type="button" onClick={() => signOut()} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-rust/30 py-3 text-sm font-semibold text-rust" data-testid="acct-signout">
         <LogOut className="h-4 w-4 rtl:-scale-x-100" />{t('coach.signOut')}
       </button>
+
+      <Sheet open={switchOpen} title={t('coach.switchToTraining')} onClose={() => setSwitchOpen(false)}>
+        <p className="mb-4 text-sm leading-relaxed text-cloud-dim">{t('coach.switchExplain')}</p>
+        {switchErr && <p className="mb-3 rounded-xl bg-rust/10 px-3 py-2 text-xs text-rust" data-testid="switch-error">{switchErr}</p>}
+        <button type="button" onClick={switchToTraining} disabled={switching} className="w-full rounded-xl bg-lime py-3 text-sm font-bold text-ink-bg disabled:opacity-60" data-testid="switch-confirm">{t('coach.switchConfirmBtn')}</button>
+      </Sheet>
 
       {user && <CoachSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} userId={user.id} />}
     </div>

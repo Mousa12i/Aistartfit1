@@ -18,11 +18,29 @@ const STORAGE_KEY = 'startfit.lang';
 /** Flip to true when every screen uses t(): then the whole page follows the language's direction. */
 const WHOLE_APP_WRITTEN = false;
 
+const PLURAL = /\{(\w+), plural, ((?:[a-z]+ \{[^{}]*\}\s*)+)\}/g;
+const pluralRules = new Map<string, Intl.PluralRules>();
+
+/**
+ * Plural forms where a language needs them (Arabic has six): {days, plural, one {يوم واحد} two {يومان} few {# أيام} many {# يومًا} other {# يوم}}.
+ * "#" is the number. The category comes from Intl.PluralRules (CLDR); "other" is the fallback.
+ */
+export function plural(lang: string, n: number, options: string): string {
+  let rules = pluralRules.get(lang);
+  if (!rules) { rules = new Intl.PluralRules(lang); pluralRules.set(lang, rules); }
+  const forms: Record<string, string> = {};
+  for (const m of options.matchAll(/([a-z]+) \{([^{}]*)\}/g)) forms[m[1]] = m[2];
+  const form = forms[rules.select(n)] ?? forms.other ?? '';
+  return form.replace(/#/g, String(n));
+}
+
 /** Fills {name} placeholders. Missing keys fall back to English, never to the raw key. */
 export function translate(lang: LangCode, key: MessageKey, vars?: Record<string, string | number>): string {
   const text = DICTIONARIES[lang]?.[key] ?? en[key] ?? key;
   if (!vars) return text;
-  return text.replace(/\{(\w+)\}/g, (m, name: string) => (name in vars ? String(vars[name]) : m));
+  return text
+    .replace(PLURAL, (m, name: string, options: string) => (name in vars && Number.isFinite(Number(vars[name])) ? plural(lang, Number(vars[name]), options) : m))
+    .replace(/\{(\w+)\}/g, (m, name: string) => (name in vars ? String(vars[name]) : m));
 }
 
 /** Share of English keys written in a language (1 = complete). */

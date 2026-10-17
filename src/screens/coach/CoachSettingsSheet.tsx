@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
-import { addReply, deleteReply, listReplies, saveCoachBrand, saveCoachSettings, type QuickReply } from '@/lib/coach/api';
+import { addReply, deleteReply, listReplies, saveCoachBrand, saveCoachSettings, saveIntakeQuestions, type QuickReply } from '@/lib/coach/api';
+import { cleanQuestions } from '@/lib/coach/screening';
 import { Sheet } from './ui';
 
 const DAYS: MessageKey[] = ['coach.daySun', 'coach.dayMon', 'coach.dayTue', 'coach.dayWed', 'coach.dayThu', 'coach.dayFri', 'coach.daySat'];
@@ -22,6 +23,7 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
   const [hStart, setHStart] = useState(9);
   const [hEnd, setHEnd] = useState(18);
   const [questions, setQuestions] = useState<string[]>([]);
+  const [intakeQs, setIntakeQs] = useState<string[]>([]);
   const [replies, setReplies] = useState<QuickReply[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -37,6 +39,8 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
     setHStart(p?.coach_hours_start ?? 9);
     setHEnd(p?.coach_hours_end ?? 18);
     setQuestions(Array.isArray(p?.coach_checkin_questions) ? p!.coach_checkin_questions!.map(String) : []);
+    const iq = (profile as { coach_intake_questions?: unknown } | null)?.coach_intake_questions;
+    setIntakeQs(Array.isArray(iq) ? iq.map(String) : []);
     listReplies(userId).then(setReplies).catch(() => undefined);
   }, [open, profile, userId]);
 
@@ -53,6 +57,7 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
         coach_hours_tz: hoursOn ? tz : null,
         coach_checkin_questions: questions.map((q) => q.trim().slice(0, 200)).filter(Boolean).slice(0, 5),
       });
+      await saveIntakeQuestions(userId, cleanQuestions(intakeQs));
       await refreshProfile();
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1600);
@@ -141,6 +146,21 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
           )}
           <p className="mt-1 text-[11px] text-cloud-muted">{t('coach.questionsHelp')}</p>
         </div>
+        <div data-testid="intake-questions">
+          <span className="mb-1 block text-xs text-cloud-dim">{t('coach.intakeQTitle')}</span>
+          <div className="space-y-2">
+            {intakeQs.map((q, i) => (
+              <div key={i} className="flex gap-2">
+                <input value={q} onChange={(e) => setIntakeQs(intakeQs.map((x, j) => (j === i ? e.target.value.slice(0, 200) : x)))} className={input} dir="auto" placeholder={t('coach.intakeQPh')} />
+                <button type="button" onClick={() => setIntakeQs(intakeQs.filter((_, j) => j !== i))} aria-label={t('coach.remove')} className="text-cloud-muted hover:text-rust"><Trash2 className="h-4 w-4" /></button>
+              </div>
+            ))}
+          </div>
+          {intakeQs.length < 10 && (
+            <button type="button" onClick={() => setIntakeQs([...intakeQs, ''])} className="mt-2 w-full rounded-xl border border-dashed border-ink-border py-2 text-xs font-semibold text-lime" data-testid="intake-question-add">{t('coach.questionAdd')}</button>
+          )}
+          <p className="mt-1 text-[11px] text-cloud-muted">{t('coach.intakeQHelp')}</p>
+        </div>
         {error && <p className="text-xs text-rust">{error}</p>}
         <button type="button" onClick={save} className="w-full rounded-xl bg-lime py-3 text-sm font-bold text-ink-bg">{saved ? t('coach.saved') : t('common.save')}</button>
 
@@ -154,7 +174,7 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
                   <div className="text-xs font-semibold text-cloud">{r.title}</div>
                   <div className="line-clamp-2 text-[11px] text-cloud-dim">{r.body}</div>
                 </div>
-                <button type="button" aria-label={t('coach.remove')} onClick={async () => { await deleteReply(r.id); setReplies(await listReplies(userId)); }} className="text-cloud-muted hover:text-rust">
+                <button type="button" aria-label={t('coach.remove')} onClick={async () => { setError(null); try { await deleteReply(r.id); setReplies(await listReplies(userId)); } catch { setError(t('coach.saveError')); } }} className="text-cloud-muted hover:text-rust">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </li>
@@ -163,8 +183,8 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
           {replies.length === 0 && (
             <button type="button" onClick={addStarters} className="mb-3 w-full rounded-xl border border-dashed border-ink-border py-2.5 text-xs font-semibold text-cloud-dim">{t('coach.addStarters')}</button>
           )}
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('coach.replyTitle')} className={cn(input, 'mb-2')} />
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder={t('coach.replyBody')} className={input} />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} dir="auto" placeholder={t('coach.replyTitle')} className={cn(input, 'mb-2')} />
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={2000} dir="auto" placeholder={t('coach.replyBody')} className={input} />
           <button type="button" onClick={add} disabled={!title.trim() || !body.trim()} className="mt-2 w-full rounded-xl border border-lime/40 py-2.5 text-sm font-semibold text-lime disabled:opacity-40">{t('coach.addReply')}</button>
         </div>
       </div>

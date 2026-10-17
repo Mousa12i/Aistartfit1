@@ -18,6 +18,7 @@ import { CoachShell } from '@/components/CoachShell';
 import { CoachInbox } from '@/screens/coach/CoachInbox';
 import { AthleteProgram, CoachPrograms, CoachRoutineEditor } from '@/screens/coach/CoachPrograms';
 import { CoachAccount } from '@/screens/coach/CoachAccount';
+import { CoachBusiness } from '@/screens/coach/CoachBusiness';
 import { CoachNutritionPlan } from '@/screens/coach/CoachNutritionPlan';
 import { CoachRecoveryPlan } from '@/screens/coach/CoachRecoveryPlan';
 import { CoachRulesPage, CoachSetup } from '@/screens/coach/CoachSetup';
@@ -187,6 +188,7 @@ function AppContent() {
           <Route path="/coach/programs" element={<ErrorBoundary label="Programs"><CoachPrograms /></ErrorBoundary>} />
           <Route path="/coach/programs/:id" element={<ErrorBoundary label="Routine"><CoachRoutineEditor /></ErrorBoundary>} />
           <Route path="/coach/account" element={<ErrorBoundary label="Account"><CoachAccount /></ErrorBoundary>} />
+          <Route path="/coach/business" element={<ErrorBoundary label="Business"><CoachBusiness /></ErrorBoundary>} />
           <Route path="/coach/profile" element={<ErrorBoundary label="Coach profile"><CoachSetup mode="edit" /></ErrorBoundary>} />
           <Route path="/coach/rules" element={<ErrorBoundary label="Coach rules"><CoachRulesPage /></ErrorBoundary>} />
           <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />

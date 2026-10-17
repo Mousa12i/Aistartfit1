@@ -62,6 +62,7 @@ export interface Profile {
   coach_hours_end?: number | null;
   coach_hours_tz?: string | null;
   coach_checkin_questions?: string[];
+  coach_intake_questions?: string[];
   created_at: string;
   updated_at: string;
 }

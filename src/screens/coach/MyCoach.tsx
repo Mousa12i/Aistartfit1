@@ -10,6 +10,8 @@ import {
 } from '@/lib/coach/api';
 import { normalizeCode, weekOf } from '@/lib/coach/insights';
 import { Avatar, Sheet } from './ui';
+import { IntakePrompt } from './IntakeForm';
+import { shortDate } from '@/lib/coach/recovery-plan';
 import { ChatThread } from './ChatThread';
 import { CoachProfileCard } from './CoachProfileCard';
 
@@ -163,6 +165,13 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
   useEffect(() => { myCoachHours().then(setHours).catch(() => undefined); }, []);
   const [aboutOpen, setAboutOpen] = useState(false);
   useEffect(() => { myCoachProfile().then(setAbout).catch(() => undefined); }, []);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveErr, setLeaveErr] = useState(false);
+  const { lang } = useI18n();
+  const leave = async () => {
+    setLeaving(true); setLeaveErr(false);
+    try { await endCoachLink(null); setLeaveOpen(false); onLeft(); } catch { setLeaveErr(true); } finally { setLeaving(false); }
+  };
 
   return (
     <div className="space-y-4">
@@ -187,6 +196,8 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
         </div>
       )}
 
+      <IntakePrompt coachId={coach.coach_id} me={me} coachName={name} />
+
       <HabitsToday me={me} t={t} />
 
       {!done && (
@@ -197,7 +208,7 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
       )}
       {lastReply?.coach_reply && (
         <div className="rounded-2xl border border-ink-border bg-ink-surface p-4">
-          <div className="mb-1 text-xs text-cloud-dim">{t('coach.coachFeedback', { date: lastReply.week_of })}</div>
+          <div className="mb-1 text-xs text-cloud-dim">{t('coach.coachFeedback', { date: shortDate(lastReply.week_of, lang) })}</div>
           <p dir="auto" className="whitespace-pre-wrap text-sm text-cloud">{lastReply.coach_reply}</p>
         </div>
       )}
@@ -218,7 +229,8 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
 
       <Sheet open={leaveOpen} title={t('coach.leave')} onClose={() => setLeaveOpen(false)}>
         <p className="mb-4 text-sm leading-relaxed text-cloud-dim">{t('coach.leaveConfirm', { name })}</p>
-        <button type="button" onClick={async () => { await endCoachLink(null); setLeaveOpen(false); onLeft(); }} className="w-full rounded-xl bg-rust py-3 text-sm font-bold text-white" data-testid="leave-confirm">{t('coach.leave')}</button>
+        {leaveErr && <p className="mb-3 rounded-xl bg-rust/10 px-3 py-2 text-xs text-rust">{t('coach.saveError')}</p>}
+        <button type="button" onClick={leave} disabled={leaving} className="w-full rounded-xl bg-rust py-3 text-sm font-bold text-white disabled:opacity-60" data-testid="leave-confirm">{t('coach.leave')}</button>
       </Sheet>
     </div>
   );
@@ -246,18 +258,25 @@ function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t, questions 
   const locked = !!existing?.reviewed_at;
   const ready = useMemo(() => SCORES.every(([k]) => v[k] != null), [v]);
 
+  const [err, setErr] = useState<string | null>(null);
   const submit = async () => {
-    setBusy(true);
     setMsg(null);
+    setErr(null);
+    const num = (s: string) => (s.trim() ? Number(s.replace(',', '.')) : null);
+    // Same limits as the database (weight 20-400 kg, waist 30-250 cm, both exclusive).
+    const w = num(weight);
+    const ws = num(waist);
+    if (w != null && (!Number.isFinite(w) || w <= 20 || w >= 400)) { setErr(t('coach.ciWeightRange')); return; }
+    if (ws != null && (!Number.isFinite(ws) || ws <= 30 || ws >= 250)) { setErr(t('coach.ciWaistRange')); return; }
+    setBusy(true);
     try {
-      const num = (s: string) => (s.trim() ? Number(s.replace(',', '.')) : null);
       const qa = questions.map((q, i) => ({ q, a: (answers[i] ?? '').trim().slice(0, 1000) })).filter((x) => x.a);
-      await submitCheckin(coachId, me, weekOfDate, { ...v, weight_kg: num(weight), waist_cm: num(waist), answers: qa }, photos);
+      await submitCheckin(coachId, me, weekOfDate, { ...v, weight_kg: w, waist_cm: ws, answers: qa }, photos);
       setMsg(t('coach.checkinSent'));
       setPhotos([]);
       onSaved();
     } catch {
-      setMsg(t('coach.saveError'));
+      setErr(t('coach.saveError'));
     } finally {
       setBusy(false);
     }
@@ -304,6 +323,7 @@ function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t, questions 
         <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => setPhotos(Array.from(e.target.files ?? ([] as unknown as FileList)).slice(0, 3) as File[])} />
       </label>
       {msg && <p className="text-xs text-lime">{msg}</p>}
+      {err && <p className="rounded-xl bg-rust/10 px-3 py-2 text-xs text-rust" data-testid="checkin-form-error">{err}</p>}
       <button type="button" onClick={submit} disabled={busy || !ready} className="w-full rounded-xl bg-lime py-3.5 text-sm font-bold text-ink-bg disabled:opacity-40" data-testid="checkin-submit">
         {existing ? t('coach.updateCheckin') : t('coach.sendCheckin')}
       </button>

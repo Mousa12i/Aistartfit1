@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { MessageKey } from '@/lib/i18n';
-import type { Reason, RiskLevel } from '@/lib/coach/insights';
+import { useI18n, type MessageKey } from '@/lib/i18n';
+import { daysBetween, type Reason, type RiskLevel } from '@/lib/coach/insights';
 import { photoUrl } from '@/lib/coach/api';
 
 type T = (key: MessageKey, vars?: Record<string, string | number>) => string;
@@ -101,6 +101,15 @@ export function Sparkline({ points, width = 120, height = 32 }: { points: number
 }
 
 /** Bottom sheet used for editing (targets, an exercise, settings). */
+function SheetClose({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
+  return (
+    <button type="button" onClick={onClose} aria-label={t('common.close')} className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink-elevated text-cloud-dim">
+      <X className="h-4 w-4" />
+    </button>
+  );
+}
+
 export function Sheet({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
     if (!open) return;
@@ -121,9 +130,7 @@ export function Sheet({ open, title, onClose, children }: { open: boolean; title
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink-border" />
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-cloud">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink-elevated text-cloud-dim">
-            <X className="h-4 w-4" />
-          </button>
+          <SheetClose onClose={onClose} />
         </div>
         {children}
       </div>
@@ -174,16 +181,24 @@ export function StatBlock({ label, value, sub, tone }: { label: string; value: R
   );
 }
 
-/** "muscle_gain" → "Muscle gain" (profile values are stored as codes). */
-export function humanize(v: string | null | undefined): string {
+const CODE_KEYS: Record<string, MessageKey> = {
+  fat_loss: 'coachcode.fat_loss', muscle_gain: 'coachcode.muscle_gain', strength: 'coachcode.strength', endurance: 'coachcode.endurance',
+  general_fitness: 'coachcode.general_fitness', new: 'coachcode.new', beginner: 'coachcode.beginner', intermediate: 'coachcode.intermediate', advanced: 'coachcode.advanced',
+};
+
+/** Profile codes ("muscle_gain", "intermediate") in the coach's language; unknown codes are shown readably. */
+export function humanize(v: string | null | undefined, t?: T): string {
   if (!v) return '—';
+  const key = CODE_KEYS[v];
+  if (key && t) return t(key);
   const s = v.replace(/_/g, ' ');
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** Calendar days in local time: something at 23:00 yesterday reads "yesterday", not "today". */
 export function relativeDays(iso: string | null, now: Date, t: T): string {
   if (!iso) return t('coach.never');
-  const d = Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000);
+  const d = daysBetween(iso, now);
   if (d <= 0) return t('coach.today');
   if (d === 1) return t('coach.yesterday');
   return t('coach.daysAgo', { days: d });
