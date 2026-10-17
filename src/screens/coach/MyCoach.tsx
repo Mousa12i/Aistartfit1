@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
 import {
-  coachErrorKey, coachProfileByCode, endCoachLink, fetchMyCoach, joinCoach, listCheckins, myCoachProfile, submitCheckin,
-  type CheckinInput, type CoachProfile, type MyCoach as MyCoachInfo, type Checkin,
+  coachErrorKey, coachProfileByCode, endCoachLink, fetchMyCoach, joinCoach, listCheckins, listHabits, myCoachHours, myCoachProfile, setHabitDone, submitCheckin,
+  type CheckinInput, type CoachHours, type Habit, type HabitLog, type CoachProfile, type MyCoach as MyCoachInfo, type Checkin,
 } from '@/lib/coach/api';
 import { normalizeCode, weekOf } from '@/lib/coach/insights';
 import { Avatar, Sheet } from './ui';
@@ -159,6 +159,8 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
   const name = coach.brand_name || coach.display_name || '';
   const lastReply = checkins.find((c) => c.coach_reply);
   const [about, setAbout] = useState<CoachProfile | null>(null);
+  const [hours, setHours] = useState<CoachHours | null>(null);
+  useEffect(() => { myCoachHours().then(setHours).catch(() => undefined); }, []);
   const [aboutOpen, setAboutOpen] = useState(false);
   useEffect(() => { myCoachProfile().then(setAbout).catch(() => undefined); }, []);
 
@@ -169,6 +171,9 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
         <div className="min-w-0 flex-1">
           <div className="truncate text-base font-bold text-cloud">{name}</div>
           <div className="text-[11px] text-cloud-dim">{t('coach.checkinDue', { day: t(DAY_KEYS[coach.checkin_day ?? 1]) })}</div>
+          {hours?.hours_start != null && hours.hours_end != null && hours.hours_start !== hours.hours_end && (
+            <div className="text-[11px] text-cloud-dim" data-testid="coach-hours">{t('coach.repliesBetween', { from: hourLabel(hours.hours_start), to: hourLabel(hours.hours_end), tz: hours.hours_tz ?? 'UTC' })}</div>
+          )}
         </div>
         <button type="button" onClick={() => setLeaveOpen(true)} aria-label={t('coach.leave')} className="text-cloud-muted hover:text-rust"><LogOut className="h-5 w-5 rtl:-scale-x-100" /></button>
       </div>
@@ -181,6 +186,8 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
           {aboutOpen && <div className="mt-2"><CoachProfileCard p={about} /></div>}
         </div>
       )}
+
+      <HabitsToday me={me} t={t} />
 
       {!done && (
         <button type="button" onClick={() => setTab('checkin')} className="flex w-full items-center gap-3 rounded-2xl border border-lime/40 bg-lime/[0.06] p-4 text-start" data-testid="checkin-prompt">
@@ -206,7 +213,7 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
       {tab === 'chat' ? (
         <ChatThread coachId={coach.coach_id} athleteId={me} me={me} />
       ) : (
-        <CheckinForm coachId={coach.coach_id} me={me} weekOfDate={thisWeek} existing={checkins.find((c) => c.week_of === thisWeek) ?? null} onSaved={reload} t={t} />
+        <CheckinForm questions={hours?.questions ?? []} coachId={coach.coach_id} me={me} weekOfDate={thisWeek} existing={checkins.find((c) => c.week_of === thisWeek) ?? null} onSaved={reload} t={t} />
       )}
 
       <Sheet open={leaveOpen} title={t('coach.leave')} onClose={() => setLeaveOpen(false)}>
@@ -226,8 +233,10 @@ const SCORES: [keyof CheckinInput, MessageKey, MessageKey][] = [
   ['nutrition_adherence', 'coach.ciNutrition', 'coach.ciNutritionQ'],
 ];
 
-function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t }: { coachId: string; me: string; weekOfDate: string; existing: Checkin | null; onSaved: () => void; t: T }) {
-  const empty: CheckinInput = { sleep: null, energy: null, stress: null, hunger: null, training_adherence: null, nutrition_adherence: null, weight_kg: null, waist_cm: null, win: null, struggle: null, question: null };
+function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t, questions }: { coachId: string; me: string; weekOfDate: string; existing: Checkin | null; onSaved: () => void; t: T; questions: string[] }) {
+  const empty: CheckinInput = { sleep: null, energy: null, stress: null, hunger: null, training_adherence: null, nutrition_adherence: null, weight_kg: null, waist_cm: null, win: null, struggle: null, question: null, answers: [] };
+  const [answers, setAnswers] = useState<string[]>(() => questions.map((q) => existing?.answers?.find((a) => a.q === q)?.a ?? ''));
+  useEffect(() => { setAnswers(questions.map((q) => existing?.answers?.find((a) => a.q === q)?.a ?? '')); }, [questions, existing]);
   const [v, setV] = useState<CheckinInput>(existing ? { ...empty, ...existing } : empty);
   const [weight, setWeight] = useState(existing?.weight_kg != null ? String(existing.weight_kg) : '');
   const [waist, setWaist] = useState(existing?.waist_cm != null ? String(existing.waist_cm) : '');
@@ -242,7 +251,8 @@ function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t }: { coachI
     setMsg(null);
     try {
       const num = (s: string) => (s.trim() ? Number(s.replace(',', '.')) : null);
-      await submitCheckin(coachId, me, weekOfDate, { ...v, weight_kg: num(weight), waist_cm: num(waist) }, photos);
+      const qa = questions.map((q, i) => ({ q, a: (answers[i] ?? '').trim().slice(0, 1000) })).filter((x) => x.a);
+      await submitCheckin(coachId, me, weekOfDate, { ...v, weight_kg: num(weight), waist_cm: num(waist), answers: qa }, photos);
       setMsg(t('coach.checkinSent'));
       setPhotos([]);
       onSaved();
@@ -282,6 +292,12 @@ function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t }: { coachI
           <textarea value={(v[k] as string | null) ?? ''} onChange={(e) => setV({ ...v, [k]: e.target.value || null })} rows={2} maxLength={1000} placeholder={t(ph)} className={field} />
         </label>
       ))}
+      {questions.map((q, i) => (
+        <label key={q} className="block" data-testid="ci-custom">
+          <span className="mb-1 block text-[11px] text-cloud-dim" dir="auto">{q}</span>
+          <textarea value={answers[i] ?? ''} onChange={(e) => setAnswers(answers.map((x, j) => (j === i ? e.target.value : x)))} rows={2} maxLength={1000} className={field} dir="auto" />
+        </label>
+      ))}
       <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-ink-border px-4 py-3">
         <Camera className="h-5 w-5 text-cloud-dim" />
         <span className="flex-1 text-xs text-cloud-dim">{photos.length ? t('coach.photosChosen', { n: photos.length }) : t('coach.addPhotos')}</span>
@@ -291,6 +307,47 @@ function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t }: { coachI
       <button type="button" onClick={submit} disabled={busy || !ready} className="w-full rounded-xl bg-lime py-3.5 text-sm font-bold text-ink-bg disabled:opacity-40" data-testid="checkin-submit">
         {existing ? t('coach.updateCheckin') : t('coach.sendCheckin')}
       </button>
+    </div>
+  );
+}
+
+const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
+
+const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** The athlete's daily habits from the coach: tick today (and see the last 7 days). */
+function HabitsToday({ me, t }: { me: string; t: T }) {
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [logs, setLogs] = useState<HabitLog[]>([]);
+  const load = useCallback(async () => {
+    try { const r = await listHabits(me); setHabits(r.habits); setLogs(r.logs); } catch { /* not shown */ }
+  }, [me]);
+  useEffect(() => { load(); }, [load]);
+  if (!habits.length) return null;
+  const today = dayKey(new Date());
+  const done = (id: string) => logs.some((l) => l.habit_id === id && l.day === today && l.done);
+  const toggle = async (h: Habit) => {
+    const next = !done(h.id);
+    setLogs((ls) => [...ls.filter((l) => !(l.habit_id === h.id && l.day === today)), { habit_id: h.id, day: today, done: next }]);
+    try { await setHabitDone(h.id, me, today, next); } catch { load(); }
+  };
+  return (
+    <div className="rounded-2xl border border-ink-border bg-ink-surface p-4" data-testid="habits-today">
+      <div className="mb-2 text-sm font-semibold text-cloud">{t('coach.habitsToday')}</div>
+      <ul className="space-y-1.5">
+        {habits.map((h) => {
+          const ok = done(h.id);
+          return (
+            <li key={h.id}>
+              <button type="button" role="checkbox" aria-checked={ok} onClick={() => toggle(h)} data-testid="habit-tick"
+                className={cn('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start', ok ? 'bg-lime/10' : 'bg-ink-elevated/60')}>
+                <span className={cn('flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border', ok ? 'border-lime bg-lime text-ink-bg' : 'border-ink-border')}>{ok && <Check className="h-3.5 w-3.5" />}</span>
+                <span className={cn('text-sm', ok ? 'text-cloud' : 'text-cloud-dim')} dir="auto">{h.title}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -57,6 +57,11 @@ export interface Profile {
   coach_dietitian?: boolean | null;
   coach_terms_version?: string | null;
   coach_terms_accepted_at?: string | null;
+  coach_welcome_message?: string | null;
+  coach_hours_start?: number | null;
+  coach_hours_end?: number | null;
+  coach_hours_tz?: string | null;
+  coach_checkin_questions?: string[];
   created_at: string;
   updated_at: string;
 }

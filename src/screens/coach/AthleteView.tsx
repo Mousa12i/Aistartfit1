@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, Dumbbell, Pencil, UserMinus } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, Columns2, Dumbbell, Pencil, Plus, TrendingUp, UserMinus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
 import {
-  assignPlan, endCoachLink, fetchRoster, listCheckins, listGivableRoutines, listReplies, loadAthleteDetail, loadNote,
+  addHabit, archiveHabit, assignPlan, endCoachLink, fetchRoster, listHabits, listCheckins, listGivableRoutines, listReplies, loadAthleteDetail, loadNote,
   reviewCheckin, saveNote, setAthleteTargets, updatePlanExercise,
-  type AthleteDetail, type Checkin, type PlanExerciseRow, type QuickReply, type RoutineOption,
+  type AthleteDetail, type Checkin, type Habit, type HabitLog, type PlanExerciseRow, type QuickReply, type RoutineOption,
 } from '@/lib/coach/api';
 import { athleteSignals, type RosterRow } from '@/lib/coach/insights';
 import { rateFeedback, weightRate, type RateStatus } from '@/lib/nutrition/engine';
+import { strengthProgress } from '@/lib/coach/progress';
 import { Avatar, Lightbox, PrivatePhoto, RiskBadge, ScoreDots, Sheet, Sparkline, StatBlock, humanize, reasonText, relativeDays } from './ui';
 import { ChatThread } from './ChatThread';
 
@@ -185,6 +186,8 @@ function Overview({ row, detail, now, me, t, onRemoved }: { row: RosterRow; deta
         {row.limitations && <p className="mt-2 rounded-lg bg-gold/10 px-2.5 py-1.5 text-xs text-gold">{t('coach.limitations')}: {row.limitations}</p>}
       </div>
 
+      <HabitsManager athleteId={row.athlete_id} me={me} now={now} t={t} />
+
       <div className="rounded-2xl border border-ink-border bg-ink-surface p-4">
         <div className="mb-1 flex items-center justify-between">
           <span className="text-sm font-semibold text-cloud">{t('coach.privateNotes')}</span>
@@ -283,6 +286,8 @@ function Training({ athleteId, me, detail, now, t, reload }: { athleteId: string
           </div>
         ))}
       </div>
+
+      <StrengthProgress detail={detail} t={t} />
 
       <div>
         <h3 className="mb-2 text-sm font-semibold text-cloud">{t('coach.recentSessions')}</h3>
@@ -516,8 +521,10 @@ function Checkins({ items, replies, firstName, t, reload }: { items: Checkin[]; 
   const [busy, setBusy] = useState<string | null>(null);
   if (items.length === 0) return <p className="py-8 text-center text-sm text-cloud-dim">{t('coach.noCheckins')}</p>;
   const template = t('coach.replyTemplate');
+  const withPhotos = items.filter((c) => c.photo_paths.length > 0);
   return (
     <div className="space-y-3">
+      {withPhotos.length >= 2 && <PhotoCompare first={withPhotos[withPhotos.length - 1]} last={withPhotos[0]} t={t} onOpen={setLightbox} />}
       {items.map((c, i) => {
         const prev = items[i + 1];
         const delta = c.weight_kg != null && prev?.weight_kg != null ? Number(c.weight_kg) - Number(prev.weight_kg) : null;
@@ -542,6 +549,9 @@ function Checkins({ items, replies, firstName, t, reload }: { items: Checkin[]; 
             {c.win && <p className="mt-3 text-xs"><span className="font-semibold text-lime">{t('coach.ciWin')}: </span><span dir="auto" className="text-cloud">{c.win}</span></p>}
             {c.struggle && <p className="mt-1.5 text-xs"><span className="font-semibold text-gold">{t('coach.ciStruggle')}: </span><span dir="auto" className="text-cloud">{c.struggle}</span></p>}
             {c.question && <p className="mt-1.5 text-xs"><span className="font-semibold text-sky">{t('coach.ciQuestion')}: </span><span dir="auto" className="text-cloud">{c.question}</span></p>}
+            {(c.answers ?? []).map((a) => (
+              <p key={a.q} className="mt-1.5 text-xs"><span className="font-semibold text-cloud-dim" dir="auto">{a.q} </span><span dir="auto" className="text-cloud">{a.a}</span></p>
+            ))}
             {c.photo_paths.length > 0 && (
               <div className="mt-3 grid grid-cols-3 gap-2">{c.photo_paths.map((p) => <PrivatePhoto key={p} path={p} className="aspect-[3/4] w-full rounded-xl" onOpen={setLightbox} />)}</div>
             )}
@@ -578,6 +588,120 @@ function Checkins({ items, replies, firstName, t, reload }: { items: Checkin[]; 
         );
       })}
       <Lightbox url={lightbox} onClose={() => setLightbox(null)} />
+    </div>
+  );
+}
+
+// ---------------- progress photos side by side ----------------
+
+function PhotoCompare({ first, last, t, onOpen }: { first: Checkin; last: Checkin; t: T; onOpen: (url: string) => void }) {
+  const [i, setI] = useState(0);
+  const n = Math.min(first.photo_paths.length, last.photo_paths.length) || 1;
+  const pick = (c: Checkin) => c.photo_paths[Math.min(i, c.photo_paths.length - 1)];
+  const dw = first.weight_kg != null && last.weight_kg != null ? Number(last.weight_kg) - Number(first.weight_kg) : null;
+  const dwaist = first.waist_cm != null && last.waist_cm != null ? Number(last.waist_cm) - Number(first.waist_cm) : null;
+  return (
+    <section className="rounded-2xl border border-ink-border bg-ink-surface p-4" data-testid="photo-compare">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-cloud"><Columns2 className="h-4 w-4 text-lime" />{t('coach.compareTitle')}</div>
+      <div className="grid grid-cols-2 gap-2">
+        {[first, last].map((c) => (
+          <div key={c.id}>
+            <PrivatePhoto path={pick(c)} className="aspect-[3/4] w-full rounded-xl" onOpen={onOpen} />
+            <div className="mt-1 text-center text-[11px] text-cloud-dim" dir="ltr">{c.week_of}{c.weight_kg != null ? ` · ${Number(c.weight_kg).toFixed(1)} kg` : ''}</div>
+          </div>
+        ))}
+      </div>
+      {n > 1 && (
+        <div className="mt-2 flex justify-center gap-1.5">
+          {Array.from({ length: n }, (_, k) => <button key={k} type="button" onClick={() => setI(k)} aria-label={`${k + 1}`} className={cn('h-2 w-6 rounded-full', i === k ? 'bg-lime' : 'bg-ink-elevated')} />)}
+        </div>
+      )}
+      {(dw != null || dwaist != null) && (
+        <div className="mt-3 flex justify-center gap-4 text-xs text-cloud" dir="ltr">
+          {dw != null && <span>{dw > 0 ? '+' : ''}{dw.toFixed(1)} kg</span>}
+          {dwaist != null && <span>{t('coach.waist')} {dwaist > 0 ? '+' : ''}{dwaist.toFixed(1)} cm</span>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------------- strength progress ----------------
+
+function StrengthProgress({ detail, t }: { detail: AthleteDetail; t: T }) {
+  const rows = useMemo(() => strengthProgress(detail.sessions), [detail.sessions]);
+  if (!rows.length) return null;
+  return (
+    <section className="rounded-2xl border border-ink-border bg-ink-surface p-4" data-testid="strength-progress">
+      <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-cloud"><TrendingUp className="h-4 w-4 text-lime" />{t('coach.strengthTitle')}</div>
+      <p className="mb-3 text-[11px] leading-relaxed text-cloud-muted">{t('coach.strengthNote')}</p>
+      <ul className="space-y-2">
+        {rows.slice(0, 8).map((r) => (
+          <li key={r.name} className="flex items-center gap-3 rounded-xl bg-ink-elevated/60 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm text-cloud">{r.name}</div>
+              <div className="text-[11px] text-cloud-dim" dir="ltr">{r.best.weight} kg × {r.best.reps} · e1RM {r.points[r.points.length - 1].toFixed(1)} kg · {t('coach.sessionsN', { n: r.points.length })}</div>
+            </div>
+            <Sparkline points={r.points} width={64} height={26} />
+            <span className={cn('w-14 text-end text-xs font-semibold tabular-nums', r.changePct > 0.5 ? 'text-lime' : r.changePct < -0.5 ? 'text-rust' : 'text-cloud-dim')} dir="ltr">
+              {r.changePct > 0 ? '+' : ''}{r.changePct.toFixed(1)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ---------------- habits (coach side) ----------------
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function HabitsManager({ athleteId, me, now, t }: { athleteId: string; me: string; now: Date; t: T }) {
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [logs, setLogs] = useState<HabitLog[]>([]);
+  const [title, setTitle] = useState('');
+  const [err, setErr] = useState(false);
+  const load = useCallback(async () => {
+    try { const r = await listHabits(athleteId); setHabits(r.habits); setLogs(r.logs); } catch { setErr(true); }
+  }, [athleteId]);
+  useEffect(() => { load(); }, [load]);
+  const days = Array.from({ length: 7 }, (_, k) => { const d = new Date(now); d.setDate(d.getDate() - (6 - k)); return ymd(d); });
+  const add = async () => {
+    if (title.trim().length < 2) return;
+    try { await addHabit(me, athleteId, title); setTitle(''); await load(); } catch { setErr(true); }
+  };
+  return (
+    <div className="rounded-2xl border border-ink-border bg-ink-surface p-4" data-testid="habits-manager">
+      <div className="mb-1 text-sm font-semibold text-cloud">{t('coach.habitsTitle')}</div>
+      <p className="mb-3 text-[11px] text-cloud-muted">{t('coach.habitsHelp')}</p>
+      <ul className="space-y-2">
+        {habits.map((h) => {
+          const done = days.filter((d) => logs.some((l) => l.habit_id === h.id && l.day === d && l.done)).length;
+          return (
+            <li key={h.id} className="rounded-xl bg-ink-elevated/60 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm text-cloud" dir="auto">{h.title}</span>
+                <span className="text-[11px] tabular-nums text-cloud-dim" dir="ltr">{done}/7</span>
+                <button type="button" onClick={async () => { await archiveHabit(h.id).catch(() => setErr(true)); load(); }} aria-label={t('coach.remove')} className="text-cloud-muted hover:text-rust"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="mt-2 flex gap-1" dir="ltr">
+                {days.map((d) => {
+                  const ok = logs.some((l) => l.habit_id === h.id && l.day === d && l.done);
+                  return <span key={d} title={d} className={cn('flex h-5 flex-1 items-center justify-center rounded', ok ? 'bg-lime text-ink-bg' : 'bg-ink-bg')}>{ok && <Check className="h-3 w-3" />}</span>;
+                })}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {habits.length < 6 && (
+        <div className="mt-2 flex gap-2">
+          <input value={title} onChange={(e) => setTitle(e.target.value.slice(0, 80))} placeholder={t('coach.habitPlaceholder')} className={field} dir="auto" data-testid="habit-input" />
+          <button type="button" onClick={add} disabled={title.trim().length < 2} aria-label={t('coach.habitAdd')} className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-lime text-ink-bg disabled:opacity-40" data-testid="habit-add"><Plus className="h-4 w-4" /></button>
+        </div>
+      )}
+      {err && <p className="mt-2 text-xs text-rust">{t('coach.saveError')}</p>}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { bytesToB64url, sendPush } from '../_shared/webpush.ts';
 import { pushText } from './text.ts';
+import { insideHours } from './hours.ts';
 
 const SUBJECT = 'https://aistartfit1.vercel.app';
 
@@ -38,18 +39,21 @@ Deno.serve(async (req: Request) => {
     }
     const vapid = { privateJwk: JSON.parse(cfg.vapid_private_jwk) as JsonWebKey, publicKey: cfg.vapid_public, subject: SUBJECT };
 
-    const since = new Date(Date.now() - 30 * 60000).toISOString();
+    // Normal notifications go out within 30 minutes; ones held for a coach's reply hours can wait up to 16 hours.
+    const fresh = Date.now() - 30 * 60000;
+    const since = new Date(Date.now() - 16 * 3600000).toISOString();
     const { data: pending } = await db.from('notifications').select('id, user_id, kind, actor_name, preview, url, created_at')
-      .is('pushed_at', null).gte('created_at', since).order('created_at').limit(200);
-    const list = (pending ?? []) as { id: string; user_id: string; kind: string; actor_name: string | null; preview: string | null; url: string }[];
+      .is('pushed_at', null).gte('created_at', since).order('created_at').limit(500);
+    const list = (pending ?? []) as { id: string; user_id: string; kind: string; actor_name: string | null; preview: string | null; url: string; created_at: string }[];
     if (!list.length) return reply({ sent: 0 });
 
     const users = [...new Set(list.map((n) => n.user_id))];
     const [{ data: profiles }, { data: subs }] = await Promise.all([
-      db.from('profiles').select('id, notification_enabled, preferred_language').in('id', users),
+      db.from('profiles').select('id, notification_enabled, preferred_language, coach_hours_start, coach_hours_end, coach_hours_tz').in('id', users),
       db.from('push_subscriptions').select('id, user_id, endpoint, p256dh, auth, failures').in('user_id', users),
     ]);
-    const prof = new Map(((profiles ?? []) as { id: string; notification_enabled: boolean | null; preferred_language: string | null }[]).map((p) => [p.id, p]));
+    type Prof = { id: string; notification_enabled: boolean | null; preferred_language: string | null; coach_hours_start: number | null; coach_hours_end: number | null; coach_hours_tz: string | null };
+    const prof = new Map(((profiles ?? []) as Prof[]).map((p) => [p.id, p]));
     const unread = new Map<string, number>();
     for (const u of users) {
       const { count } = await db.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', u).is('read_at', null);
@@ -58,8 +62,15 @@ Deno.serve(async (req: Request) => {
 
     let sent = 0;
     let failed = 0;
+    let held = 0;
     for (const n of list) {
       const p = prof.get(n.user_id);
+      const hasHours = p?.coach_hours_start != null && p?.coach_hours_end != null;
+      if (hasHours && !insideHours(p!.coach_hours_start, p!.coach_hours_end, p!.coach_hours_tz)) { held++; continue; }
+      if (!hasHours && new Date(n.created_at).getTime() < fresh) {
+        await db.from('notifications').update({ pushed_at: new Date().toISOString() }).eq('id', n.id);
+        continue;
+      }
       const targets = ((subs ?? []) as { id: string; user_id: string; endpoint: string; p256dh: string; auth: string; failures: number }[]).filter((s) => s.user_id === n.user_id);
       if (p?.notification_enabled !== false) {
         const text = pushText(p?.preferred_language, n.kind as Parameters<typeof pushText>[1], n.actor_name ?? 'StartFit', n.preview);
@@ -78,7 +89,7 @@ Deno.serve(async (req: Request) => {
       }
       await db.from('notifications').update({ pushed_at: new Date().toISOString() }).eq('id', n.id);
     }
-    return reply({ processed: list.length, sent, failed });
+    return reply({ processed: list.length, sent, failed, held });
   } catch (e) {
     console.error('push-dispatch error', e);
     return reply({ error: 'failed' }, 500);

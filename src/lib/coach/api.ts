@@ -103,6 +103,56 @@ export async function myCoachProfile(): Promise<CoachProfile | null> {
   return (data as CoachProfile | null) ?? null;
 }
 
+// ---------------- coaching settings (welcome, reply hours, check-in questions) ----------------
+
+export interface CoachHours { hours_start: number | null; hours_end: number | null; hours_tz: string | null; questions: string[] }
+
+export async function saveCoachSettings(userId: string, patch: {
+  coach_welcome_message?: string | null; coach_hours_start?: number | null; coach_hours_end?: number | null; coach_hours_tz?: string | null; coach_checkin_questions?: string[];
+}): Promise<void> {
+  const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+  if (error) fail(error);
+}
+
+export async function myCoachHours(): Promise<CoachHours | null> {
+  const { data, error } = await supabase.rpc('my_coach_hours');
+  if (error) fail(error);
+  const row = ((data ?? []) as { hours_start: number | null; hours_end: number | null; hours_tz: string | null; questions: unknown }[])[0];
+  if (!row) return null;
+  return { ...row, questions: Array.isArray(row.questions) ? (row.questions as unknown[]).map(String) : [] };
+}
+
+// ---------------- habits ----------------
+
+export interface Habit { id: string; coach_id: string; athlete_id: string; title: string; active: boolean; created_at: string }
+export interface HabitLog { habit_id: string; day: string; done: boolean }
+
+export async function listHabits(athleteId: string): Promise<{ habits: Habit[]; logs: HabitLog[] }> {
+  const since = new Date(Date.now() - 13 * 86400000).toISOString().slice(0, 10);
+  const { data, error } = await supabase.from('coach_habits').select('*').eq('athlete_id', athleteId).eq('active', true).order('created_at');
+  if (error) fail(error);
+  const habits = (data ?? []) as Habit[];
+  if (!habits.length) return { habits, logs: [] };
+  const { data: logs, error: e2 } = await supabase.from('coach_habit_logs').select('habit_id, day, done').in('habit_id', habits.map((h) => h.id)).gte('day', since);
+  if (e2) fail(e2);
+  return { habits, logs: (logs ?? []) as HabitLog[] };
+}
+
+export async function addHabit(coachId: string, athleteId: string, title: string): Promise<void> {
+  const { error } = await supabase.from('coach_habits').insert({ coach_id: coachId, athlete_id: athleteId, title: title.trim().slice(0, 80), active: true });
+  if (error) fail(error);
+}
+
+export async function archiveHabit(id: string): Promise<void> {
+  const { error } = await supabase.from('coach_habits').update({ active: false }).eq('id', id);
+  if (error) fail(error);
+}
+
+export async function setHabitDone(habitId: string, athleteId: string, day: string, done: boolean): Promise<void> {
+  const { error } = await supabase.from('coach_habit_logs').upsert({ habit_id: habitId, athlete_id: athleteId, day, done, updated_at: new Date().toISOString() }, { onConflict: 'habit_id,day' });
+  if (error) fail(error);
+}
+
 // ---------------- links ----------------
 
 export interface CoachCard {
@@ -274,6 +324,9 @@ export interface ChatMessage {
   sender_id: string;
   body: string | null;
   image_path: string | null;
+  audio_path?: string | null;
+  audio_seconds?: number | null;
+  broadcast_id?: string | null;
   created_at: string;
   read_at: string | null;
 }
@@ -317,6 +370,26 @@ export async function sendMessage(m: { coachId: string; athleteId: string; sende
   if (error) fail(error);
 }
 
+/** Voice note: uploaded to the private bucket; the body carries a short label so previews and notifications read well. */
+export async function sendVoiceNote(m: { coachId: string; athleteId: string; senderId: string; blob: Blob; seconds: number }): Promise<void> {
+  const type = m.blob.type.split(';')[0] || 'audio/webm';
+  const ext = type.includes('mp4') || type.includes('aac') || type.includes('m4a') ? 'm4a' : type.includes('ogg') ? 'ogg' : type.includes('mpeg') ? 'mp3' : 'webm';
+  const path = `${m.coachId}/${m.athleteId}/voice/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, m.blob, { contentType: type, upsert: false });
+  if (upErr) fail(upErr);
+  const secs = Math.max(1, Math.min(180, Math.round(m.seconds)));
+  const label = `🎤 ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  const { error } = await supabase.from('coach_messages').insert({ coach_id: m.coachId, athlete_id: m.athleteId, sender_id: m.senderId, body: label, audio_path: path, audio_seconds: secs });
+  if (error) fail(error);
+}
+
+/** One message to all athletes (athletes = null) or to the chosen ones. Returns how many were sent. */
+export async function broadcast(body: string, athletes: string[] | null): Promise<number> {
+  const { data, error } = await supabase.rpc('coach_broadcast', { body, athletes });
+  if (error) fail(error);
+  return Number(data ?? 0);
+}
+
 export async function markRead(coachId: string, athleteId: string, me: string): Promise<void> {
   await supabase.from('coach_messages').update({ read_at: new Date().toISOString() })
     .eq('coach_id', coachId).eq('athlete_id', athleteId).neq('sender_id', me).is('read_at', null);
@@ -355,12 +428,14 @@ export interface Checkin {
   struggle: string | null;
   question: string | null;
   photo_paths: string[];
+  /** Answers to the coach's own questions. */
+  answers?: { q: string; a: string }[];
   submitted_at: string;
   coach_reply: string | null;
   reviewed_at: string | null;
 }
 
-export type CheckinInput = Pick<Checkin, 'sleep' | 'energy' | 'stress' | 'hunger' | 'training_adherence' | 'nutrition_adherence' | 'weight_kg' | 'waist_cm' | 'win' | 'struggle' | 'question'>;
+export type CheckinInput = Pick<Checkin, 'sleep' | 'energy' | 'stress' | 'hunger' | 'training_adherence' | 'nutrition_adherence' | 'weight_kg' | 'waist_cm' | 'win' | 'struggle' | 'question' | 'answers'>;
 
 export async function listCheckins(coachId: string, athleteId: string): Promise<Checkin[]> {
   const { data, error } = await supabase.from('coach_checkins').select('*').eq('coach_id', coachId).eq('athlete_id', athleteId)
@@ -372,8 +447,9 @@ export async function listCheckins(coachId: string, athleteId: string): Promise<
 export async function submitCheckin(coachId: string, athleteId: string, weekOf: string, input: CheckinInput, photos: File[]): Promise<void> {
   const photo_paths: string[] = [];
   for (const f of photos.slice(0, 3)) photo_paths.push(await uploadCoachPhoto(coachId, athleteId, f, 'checkins'));
+  // Editing without new photos keeps the ones already sent.
   const { error } = await supabase.from('coach_checkins').upsert(
-    { coach_id: coachId, athlete_id: athleteId, week_of: weekOf, ...input, photo_paths, submitted_at: new Date().toISOString() },
+    { coach_id: coachId, athlete_id: athleteId, week_of: weekOf, ...input, ...(photo_paths.length ? { photo_paths } : {}), submitted_at: new Date().toISOString() },
     { onConflict: 'athlete_id,coach_id,week_of' },
   );
   if (error) fail(error);

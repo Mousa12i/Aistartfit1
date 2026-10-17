@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon, Send, Zap } from 'lucide-react';
+import { Image as ImageIcon, Mic, Send, Square, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
-import { listMessages, markRead, sendMessage, type ChatMessage, type QuickReply } from '@/lib/coach/api';
+import { listMessages, markRead, photoUrl, sendMessage, sendVoiceNote, type ChatMessage, type QuickReply } from '@/lib/coach/api';
 import { Lightbox, PrivatePhoto } from './ui';
 
 /** The coach–athlete conversation (text and photos). Refreshes every few seconds while open. */
@@ -25,6 +25,54 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const lastCount = useRef(0);
+  const [recSecs, setRecSecs] = useState<number | null>(null);
+  const recRef = useRef<{ rec: MediaRecorder; chunks: Blob[]; started: number; timer: number; stream: MediaStream } | null>(null);
+  const canRecord = typeof window !== 'undefined' && typeof window.MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+
+  const stopRecording = (send: boolean) => {
+    const r = recRef.current;
+    if (!r) return;
+    window.clearInterval(r.timer);
+    r.rec.onstop = async () => {
+      r.stream.getTracks().forEach((tr) => tr.stop());
+      const secs = (Date.now() - r.started) / 1000;
+      recRef.current = null;
+      setRecSecs(null);
+      if (!send || secs < 1) return;
+      setSending(true);
+      try {
+        await sendVoiceNote({ coachId, athleteId, senderId: me, blob: new Blob(r.chunks, { type: r.rec.mimeType || 'audio/webm' }), seconds: secs });
+        await load();
+      } catch {
+        setError(t('coach.sendError'));
+      } finally {
+        setSending(false);
+      }
+    };
+    r.rec.stop();
+  };
+
+  const startRecording = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((x) => MediaRecorder.isTypeSupported?.(x));
+      const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.start();
+      const started = Date.now();
+      const timer = window.setInterval(() => {
+        const s2 = Math.floor((Date.now() - started) / 1000);
+        setRecSecs(s2);
+        if (s2 >= 180) stopRecording(true);
+      }, 250);
+      recRef.current = { rec, chunks, started, timer, stream };
+      setRecSecs(0);
+    } catch {
+      setError(t('coach.micBlocked'));
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -83,7 +131,7 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
             <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
               <div className={cn('max-w-[82%] rounded-2xl px-3.5 py-2.5', mine ? 'rounded-ee-md bg-lime text-ink-bg' : 'rounded-es-md bg-ink-elevated text-cloud')}>
                 {m.image_path && <PrivatePhoto path={m.image_path} className="mb-1.5 max-h-64 w-full rounded-xl" onOpen={setLightbox} />}
-                {m.body && <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.body}</p>}
+                {m.audio_path ? <VoiceNote path={m.audio_path} /> : m.body && <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.body}</p>}
                 <div className={cn('mt-1 text-[10px]', mine ? 'text-ink-bg/60' : 'text-cloud-muted')}>
                   {time(m.created_at)}{mine && m.read_at ? ` · ${t('coach.seen')}` : ''}
                 </div>
@@ -128,6 +176,13 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
             <Zap className="h-5 w-5" />
           </button>
         )}
+        {recSecs != null ? (
+          <div className="flex min-h-10 flex-1 items-center gap-2 px-1 text-sm text-rust" data-testid="recording">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-rust" />
+            <span className="tabular-nums" dir="ltr">{Math.floor(recSecs / 60)}:{String(recSecs % 60).padStart(2, '0')} / 3:00</span>
+            <button type="button" onClick={() => stopRecording(false)} className="ms-auto text-xs text-cloud-dim">{t('common.cancel')}</button>
+          </div>
+        ) : (
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -136,7 +191,14 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
           data-testid="chat-input"
           className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-sm text-cloud placeholder:text-cloud-muted focus:outline-none"
         />
-        <button
+        )}
+        {canRecord && !text.trim() && !file && (
+          <button type="button" onClick={() => (recSecs != null ? stopRecording(true) : startRecording())} disabled={sending} aria-label={recSecs != null ? t('coach.voiceStop') : t('coach.voiceRecord')} data-testid="voice-btn"
+            className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', recSecs != null ? 'bg-rust text-white' : 'bg-ink-elevated text-cloud-dim')}>
+            {recSecs != null ? <Square className="h-4 w-4" /> : <Mic className="h-5 w-5" />}
+          </button>
+        )}
+        {(text.trim() || file || !canRecord) && <button
           type="button"
           onClick={send}
           disabled={sending || (!text.trim() && !file)}
@@ -145,9 +207,17 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
           className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-lime text-ink-bg disabled:opacity-40"
         >
           <Send className="h-4 w-4 rtl:-scale-x-100" />
-        </button>
+        </button>}
       </div>
       <Lightbox url={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
+}
+
+/** A voice note from the private bucket, played through a short-lived signed link. */
+function VoiceNote({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => { photoUrl(path).then(setUrl).catch(() => setUrl(null)); }, [path]);
+  if (!url) return <div className="h-10 w-48 animate-pulse rounded-full bg-black/10" />;
+  return <audio controls preload="metadata" src={url} className="h-10 w-60 max-w-full" data-testid="voice-note" />;
 }
