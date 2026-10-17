@@ -151,6 +151,10 @@ export interface WorkoutPlanExercise {
   day_label?: string | null;
   rir_target?: number | null;
   notes?: string | null;
+  /** Coach prescription extras. */
+  tempo?: string | null;
+  group_label?: string | null;
+  alt_exercise_id?: string | null;
 }
 
 export interface WorkoutSession {

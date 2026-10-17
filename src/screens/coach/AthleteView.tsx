@@ -219,6 +219,7 @@ function Overview({ row, detail, now, me, t, onRemoved }: { row: RosterRow; deta
 // ---------------- training ----------------
 
 function Training({ athleteId, me, detail, now, t, reload }: { athleteId: string; me: string; detail: AthleteDetail; now: Date; t: T; reload: () => Promise<void> }) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState<PlanExerciseRow | null>(null);
   const [giveOpen, setGiveOpen] = useState(false);
   const [routines, setRoutines] = useState<RoutineOption[] | null>(null);
@@ -264,7 +265,10 @@ function Training({ athleteId, me, detail, now, t, reload }: { athleteId: string
             <div className="text-xs text-cloud-dim">{t('coach.activeRoutine')}</div>
             <div className="truncate text-base font-bold text-cloud">{detail.plan?.name ?? t('coach.noRoutine')}</div>
           </div>
-          <button type="button" onClick={openGive} className="flex-shrink-0 rounded-xl bg-lime px-3 py-2 text-xs font-bold text-ink-bg" data-testid="give-routine">{t('coach.giveRoutine')}</button>
+          <div className="flex flex-shrink-0 gap-1.5">
+            {detail.plan && <button type="button" onClick={() => navigate(`/coach/athlete/${athleteId}/program`)} className="rounded-xl border border-lime/40 px-3 py-2 text-xs font-bold text-lime" data-testid="edit-program">{t('coach.editProgram')}</button>}
+            <button type="button" onClick={openGive} className="rounded-xl bg-lime px-3 py-2 text-xs font-bold text-ink-bg" data-testid="give-routine">{t('coach.giveRoutine')}</button>
+          </div>
         </div>
         {days.map((d) => (
           <div key={d.label} className="mb-3 last:mb-0">

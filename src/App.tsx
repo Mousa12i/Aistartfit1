@@ -16,7 +16,7 @@ import { CoachHome } from '@/screens/coach/CoachHome';
 import { WeekManager } from '@/screens/coach/WeekManager';
 import { CoachShell } from '@/components/CoachShell';
 import { CoachInbox } from '@/screens/coach/CoachInbox';
-import { CoachPrograms, CoachRoutineEditor } from '@/screens/coach/CoachPrograms';
+import { AthleteProgram, CoachPrograms, CoachRoutineEditor } from '@/screens/coach/CoachPrograms';
 import { CoachAccount } from '@/screens/coach/CoachAccount';
 import { CoachRulesPage, CoachSetup } from '@/screens/coach/CoachSetup';
 import { COACH_TERMS_VERSION } from '@/lib/coach/api';
@@ -188,6 +188,7 @@ function AppContent() {
           <Route path="/coach/profile" element={<ErrorBoundary label="Coach profile"><CoachSetup mode="edit" /></ErrorBoundary>} />
           <Route path="/coach/rules" element={<ErrorBoundary label="Coach rules"><CoachRulesPage /></ErrorBoundary>} />
           <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />
+          <Route path="/coach/athlete/:id/program" element={<ErrorBoundary label="Program"><AthleteProgram /></ErrorBoundary>} />
           <Route path="/settings" element={<Settings onBack={() => navigate('/coach/account')} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

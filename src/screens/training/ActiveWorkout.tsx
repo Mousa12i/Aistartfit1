@@ -6,6 +6,7 @@ import { DeloadBanner } from '@/components/recovery/DeloadBanner';
 import { TimeFitSheet, applyFit, type PairInfo } from './TimeFit';
 import { SHORT_ON_TIME_PREFIX, type FitResult } from '@/lib/training/time-fit';
 import type { WorkoutPlanExercise, SetType, Exercise } from '@/lib/types';
+import { useI18n } from '@/lib/i18n';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/Modal';
@@ -171,6 +172,7 @@ export function ActiveWorkout({ planId, day = null, exerciseId = null, onBack, o
         }
 
         setExercises(rows);
+        setPairs(coachSupersets(rows));
         const initial: Record<number, SetState[]> = {};
         rows.forEach((e, i) => {
           const logged = logs.filter((l) => l.exercise_id === e.exercise_id).reduce((m, l) => Math.max(m, l.set_number), 0);
@@ -709,6 +711,10 @@ export function ActiveWorkout({ planId, day = null, exerciseId = null, onBack, o
             </div>
           )}
 
+          {(currentExercise.tempo || currentExercise.rir_target != null || currentExercise.notes || currentExercise.alt_exercise_id) && (
+            <CoachPrescription row={currentExercise} />
+          )}
+
           <Card className="p-4 mb-4">
             <div className="grid grid-cols-4 gap-2 text-center">
               <div>
@@ -950,6 +956,41 @@ export function ActiveWorkout({ planId, day = null, exerciseId = null, onBack, o
         onConfirm={() => { if (sessionId) { void abandonWorkoutSession(sessionId); } onBack(); }}
         onCancel={() => setShowExitConfirm(false)}
       />
+    </div>
+  );
+}
+
+/** Supersets the coach set with a group letter: consecutive exercises with the same letter become A1/A2. */
+function coachSupersets(rows: WorkoutPlanExercise[]): Record<string, PairInfo> {
+  const out: Record<string, PairInfo> = {};
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const a = rows[i];
+    const b = rows[i + 1];
+    if (!a.group_label || a.group_label !== b.group_label || out[a.id] || out[b.id]) continue;
+    out[a.id] = { label: `${a.group_label}1`, partnerId: b.id, partnerName: b.exercise?.name ?? '' };
+    out[b.id] = { label: `${a.group_label}2`, partnerId: a.id, partnerName: a.exercise?.name ?? '' };
+  }
+  return out;
+}
+
+/** The coach's prescription for this exercise: target effort, tempo, cue and the alternative if needed. */
+function CoachPrescription({ row }: { row: WorkoutPlanExercise }) {
+  const { t } = useI18n();
+  const [alt, setAlt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!row.alt_exercise_id) { setAlt(null); return; }
+    fetchExercisesByIds([row.alt_exercise_id]).then((x) => setAlt(x[0]?.name ?? null)).catch(() => setAlt(null));
+  }, [row.alt_exercise_id]);
+  return (
+    <div className="mb-4 rounded-2xl border border-gold/30 bg-gold/[0.06] p-3 text-xs" data-testid="coach-prescription">
+      <div className="mb-1 font-semibold text-gold">{t('coach.prescriptionTitle')}</div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-cloud" dir="ltr">
+        {row.rir_target != null && <span>RIR {row.rir_target}</span>}
+        {row.tempo && <span>{t('coach.tempo')} {row.tempo}</span>}
+      </div>
+      {row.notes && <p className="mt-1 text-cloud" dir="auto">{row.notes}</p>}
+      {alt && <p className="mt-1 text-cloud-dim" dir="auto">{t('coach.alternative')}: {alt}</p>}
+      {row.tempo && <p className="mt-1 text-[10px] text-cloud-muted">{t('coach.tempoHelp')}</p>}
     </div>
   );
 }

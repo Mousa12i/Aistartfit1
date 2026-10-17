@@ -4,6 +4,7 @@ import { deleteRoutine, setActiveRoutine, fetchActiveRoutine, routineVariant, fi
 import { HomeSwitchSheet } from './HomeSwitch';
 import { routineDays, routineWeeklySets } from '@/lib/training/routine';
 import { useAuth } from '@/lib/auth';
+import { useI18n } from '@/lib/i18n';
 import type { WorkoutPlan, WorkoutPlanExercise } from '@/lib/types';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Avatar';
@@ -136,6 +137,10 @@ export function ProgrammeDetail({ planId, onBack, onStartWorkout, onOpenExercise
           <h1 className="text-display-md text-cloud font-bold">{plan.name}</h1>
         </div>
       </div>
+
+      {typeof (plan as WorkoutPlan & { details?: { progression?: unknown } }).details?.progression === 'string' && (
+        <CoachProgression text={String((plan as WorkoutPlan & { details?: { progression?: unknown } }).details!.progression)} />
+      )}
 
       {plan.description && (
         <div className="px-5 mt-4 mb-5">
@@ -307,5 +312,19 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
         <p className="text-sm font-semibold text-cloud truncate">{value}</p>
       </div>
     </Card>
+  );
+}
+
+/** The coach's progression instructions for this program. */
+function CoachProgression({ text }: { text: string }) {
+  const { t, dir } = useI18n();
+  if (!text.trim()) return null;
+  return (
+    <div className="px-5 mt-4" dir={dir} data-testid="coach-progression">
+      <div className="rounded-2xl border border-gold/30 bg-gold/[0.06] p-3">
+        <div className="mb-1 text-xs font-semibold text-gold">{t('coach.progressionShown')}</div>
+        <p className="whitespace-pre-line text-sm leading-relaxed text-cloud" dir="auto">{text}</p>
+      </div>
+    </div>
   );
 }
