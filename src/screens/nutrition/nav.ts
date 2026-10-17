@@ -14,9 +14,10 @@ export type NutritionPage =
   | 'reports'
   | 'check-in'
   | 'recipes'
-  | 'goal';
+  | 'goal'
+  | 'coach-plan';
 
-const PAGES: NutritionPage[] = ['hub', 'diary', 'add', 'food', 'nutrients', 'plan', 'weight', 'coach', 'library', 'reports', 'check-in', 'recipes', 'goal'];
+const PAGES: NutritionPage[] = ['hub', 'diary', 'add', 'food', 'nutrients', 'plan', 'weight', 'coach', 'library', 'reports', 'check-in', 'recipes', 'goal', 'coach-plan'];
 
 export function pageFromPath(pathname: string): NutritionPage {
   const sub = pathname.replace(/^\/nutrition\/?/, '').split('/')[0];

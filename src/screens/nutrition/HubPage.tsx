@@ -29,6 +29,7 @@ import { buildInsights, loggingStreak, proteinMealsHit, summarizeDay, type Insig
 import { useNutrition } from './NutritionContext';
 import { useNutritionNav, type NutritionPage } from './nav';
 import { GoalEntryCard } from './GoalPage';
+import { CoachPlanCard } from './CoachPlanPage';
 import { MACRO_COLORS, MacroBar, Notice, Page, PageHeader, Panel, Ring, Section, SetupRequired, Skeleton, Toast, fmt } from './ui';
 
 export function HubPage() {
@@ -176,6 +177,12 @@ export function HubPage() {
           <button type="button" onClick={() => go('add', { meal: 'pre_workout', date: today })} className="flex-shrink-0 text-xs font-semibold text-lime">
             Log
           </button>
+        </div>
+      )}
+
+      {n.coachPlan && (
+        <div className="mt-3">
+          <CoachPlanCard onOpen={() => go('coach-plan')} />
         </div>
       )}
 

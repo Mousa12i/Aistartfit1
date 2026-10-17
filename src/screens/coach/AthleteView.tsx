@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Check, ChevronDown, ChevronLeft, Columns2, Dumbbell, Pencil, Plus, TrendingUp, UserMinus, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, Columns2, Utensils, Dumbbell, Pencil, Plus, TrendingUp, UserMinus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
@@ -403,6 +403,7 @@ function ExerciseSheet({ ex, onClose, onSaved, t }: { ex: PlanExerciseRow | null
 // ---------------- nutrition ----------------
 
 function Nutrition({ athleteId, row, detail, t, reload }: { athleteId: string; row: RosterRow; detail: AthleteDetail; t: T; reload: () => Promise<void> }) {
+  const navigate = useNavigate();
   const settings = detail.settings ?? {};
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<string>(String(settings.goal_mode ?? 'maintain'));
@@ -448,6 +449,14 @@ function Nutrition({ athleteId, row, detail, t, reload }: { athleteId: string; r
   return (
     <div className="space-y-4">
       {msg && <p className="rounded-xl bg-lime/10 px-3 py-2 text-xs text-lime">{msg}</p>}
+      <button type="button" onClick={() => navigate(`/coach/athlete/${athleteId}/nutrition-plan`)} data-testid="open-meal-plan"
+        className="flex w-full items-center gap-3 rounded-2xl border border-lime/40 bg-lime/[0.06] px-4 py-3.5 text-start">
+        <Utensils className="h-5 w-5 flex-shrink-0 text-lime" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-cloud">{t('mealplan.editorTitle')}</span>
+          <span className="block text-xs text-cloud-dim">{t('mealplan.editorEntry')}</span>
+        </span>
+      </button>
       <div className="rounded-2xl border border-ink-border bg-ink-surface p-4">
         <div className="flex items-start justify-between gap-3">
           <div>

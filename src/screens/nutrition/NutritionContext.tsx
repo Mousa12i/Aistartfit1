@@ -43,6 +43,7 @@ import {
 } from '@/lib/nutrition/engine';
 import type { FoodItem } from '@/lib/nutrition/foods';
 import { deriveSafety, type SafetyState } from '@/lib/nutrition/screening';
+import { applyCoachPlan, loadNutritionPlan, type NutritionPlan } from '@/lib/coach/nutrition-plan';
 
 export interface DayData {
   entries: FoodEntry[];
@@ -69,6 +70,8 @@ interface NutritionContextValue {
   statsMissing: string[];
   planSettings: PlanSettings;
   targetsFor: (date: string) => Targets;
+  /** The coach's nutrition plan, when the athlete has a coach who made one. */
+  coachPlan: NutritionPlan | null;
   isTrainingDay: (date: string) => boolean;
   trainingDaysPerWeek: number;
   workoutDates: string[];
@@ -110,6 +113,11 @@ function sortEntries(list: FoodEntry[]): FoodEntry[] {
 
 export function NutritionProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth();
+  const [coachPlan, setCoachPlan] = useState<NutritionPlan | null>(null);
+  useEffect(() => {
+    if (!user || profile?.account_type === 'coach') { setCoachPlan(null); return; }
+    loadNutritionPlan(user.id).then(setCoachPlan).catch(() => setCoachPlan(null));
+  }, [user, profile?.account_type]);
   const userId = user?.id ?? null;
   const [today, setToday] = useState(todayKey());
   const [loading, setLoading] = useState(true);
@@ -333,15 +341,20 @@ export function NutritionProvider({ children }: { children: ReactNode }) {
 
   const targetsFor = useCallback(
     (date: string) =>
-      computeTargets(stats, planSettings, {
-        today,
-        date,
-        trainingDay: isTrainingDay(date),
-        trainingDaysPerWeek,
-        noDeficit: safety.noDeficit,
-        noWeightGoals: safety.noWeightGoals,
-      }),
-    [stats, planSettings, today, isTrainingDay, trainingDaysPerWeek, safety.noDeficit, safety.noWeightGoals],
+      applyCoachPlan(
+        computeTargets(stats, planSettings, {
+          today,
+          date,
+          trainingDay: isTrainingDay(date),
+          trainingDaysPerWeek,
+          noDeficit: safety.noDeficit,
+          noWeightGoals: safety.noWeightGoals,
+        }),
+        coachPlan,
+        isTrainingDay(date),
+        { noDeficit: safety.noDeficit, noWeightGoals: safety.noWeightGoals },
+      ),
+    [stats, planSettings, today, isTrainingDay, trainingDaysPerWeek, safety.noDeficit, safety.noWeightGoals, coachPlan],
   );
 
   const value: NutritionContextValue = {
@@ -361,6 +374,7 @@ export function NutritionProvider({ children }: { children: ReactNode }) {
     statsMissing,
     planSettings,
     targetsFor,
+    coachPlan,
     isTrainingDay,
     trainingDaysPerWeek,
     workoutDates,
