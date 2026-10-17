@@ -118,7 +118,7 @@ Deno.serve(async (req: Request) => {
 
     // Admin override: bypass rate limiting for admin emails
     const ADMIN_EMAILS = ['mossaismael551@gmail.com'];
-    const isAdmin = ADMIN_EMAILS.includes((user.email ?? '').toLowerCase());
+    const isAdmin = !!user.email_confirmed_at && ADMIN_EMAILS.includes((user.email ?? '').toLowerCase());
 
     // Rate limiting: check and increment usage (skip for admin)
     const { data: usage } = await supabase

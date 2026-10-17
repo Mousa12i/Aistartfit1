@@ -56,11 +56,11 @@ export const TIERS: Record<Tier, TierConfig> = {
     biometric: false,
     feats: [
       'Full workout logging, rest timer, history',
-      'Animated exercise demos',
-      'Basic progress and weight charts',
-      'Calorie and protein estimates, meal and water log',
-      'Rule-based Coach: 5 actions a day',
-      '1 plan recommendation at a time',
+      'The full exercise library with animated demos',
+      'Progress and weight charts',
+      'Calorie and macro targets, meal and water log',
+      'Recovery body map with muscle recovery %',
+      'AI Coach: 5 actions a day',
     ],
     recovery: {
       recoveryBodyMap: true,
@@ -101,12 +101,10 @@ export const TIERS: Record<Tier, TierConfig> = {
     biometric: false,
     feats: [
       'Everything in Free',
-      'Full Exercise Vault access (153+ exercises)',
-      'Pro muscle & equipment filtering',
-      'Training volume & strength analytics',
-      'Daily meal plan targets & macros',
-      'Coach: 30 actions a day',
-      'Up to 5 plan recommendations',
+      'Training volume analytics',
+      'Recovery Doctor, weekly recovery report and lighter-week planning',
+      'Recovery coach, load trend and return-to-training guide',
+      'AI Coach: 30 actions a day',
     ],
     recovery: {
       recoveryBodyMap: true,
@@ -148,12 +146,11 @@ export const TIERS: Record<Tier, TierConfig> = {
     feats: [
       'Everything in Pro',
       'AI Biometric Routine Generator (o3-mini)',
-      'Injury avoidance & joint-safe exercise algorithms',
-      'Continuous AI coach with deep physiological reasoning',
-      'All-time progress range & per-exercise strength trends',
-      'Coach: 100 actions a day',
-      'Unlimited plan recommendations',
-      'PDF Blueprint export for all routines',
+      'Generated routines work around the limitations you enter',
+      'Per-exercise strength trends',
+      'Personal recovery profile, HRV tracking and recovery PDF report',
+      'AI Coach: 100 actions a day',
+      'PDF export of your generated routines',
     ],
     recovery: {
       recoveryBodyMap: true,
@@ -195,9 +192,9 @@ export interface BlueprintProduct {
 }
 
 export const BLUEPRINTS: BlueprintProduct[] = [
-  { id: 'bp_1w', name: '1-Week Blueprint', duration: '1 week', price: 3.50, priceInPence: 350, description: 'Custom AI-generated single-week training program', weeks: 1 },
-  { id: 'bp_2w', name: '2-Weeks Blueprint', duration: '2 weeks', price: 5.99, priceInPence: 599, description: 'Two-week progressive training plan with exercise substitutions', weeks: 2 },
-  { id: 'bp_4w', name: '4-Weeks Blueprint', duration: '1 month', price: 9.99, priceInPence: 999, description: 'Full month transformation program with periodised progression', weeks: 4 },
-  { id: 'bp_3m', name: '3-Month Transformation', duration: '3 months', price: 19.99, priceInPence: 1999, description: 'Complete 12-week periodised program with deload weeks and progression', weeks: 12 },
-  { id: 'bp_6m', name: '6-Month Complete Blueprint', duration: '6 months', price: 34.99, priceInPence: 3499, description: 'Ultimate 24-week transformation with multiple mesocycles and nutrition framework', weeks: 24 },
+  { id: 'bp_1w', name: '1-Week Blueprint', duration: '1 week', price: 3.50, priceInPence: 350, description: 'One custom AI training week built from your profile, with form cues and a PDF', weeks: 1 },
+  { id: 'bp_2w', name: '2-Weeks Blueprint', duration: '2 weeks', price: 5.99, priceInPence: 599, description: 'One custom AI programme with a 2-week progression plan and a PDF', weeks: 2 },
+  { id: 'bp_4w', name: '4-Weeks Blueprint', duration: '1 month', price: 9.99, priceInPence: 999, description: 'One custom AI programme with a week-by-week plan for 4 weeks and a PDF', weeks: 4 },
+  { id: 'bp_3m', name: '3-Month Transformation', duration: '3 months', price: 19.99, priceInPence: 1999, description: 'One custom AI programme with a 12-week progression plan, lighter weeks included, and a PDF', weeks: 12 },
+  { id: 'bp_6m', name: '6-Month Complete Blueprint', duration: '6 months', price: 34.99, priceInPence: 3499, description: 'One custom AI programme with a 24-week progression plan, lighter weeks included, and a PDF', weeks: 24 },
 ];

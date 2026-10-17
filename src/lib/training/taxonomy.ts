@@ -986,7 +986,7 @@ export function classifyExercise(input: ClassifyInput): ExerciseProfile {
 /**
  * Weekly-volume contribution of one set to each muscle group: 1 for a muscle trained directly
  * (primary), 0.5 for a muscle trained indirectly (secondary). This "fractional" way of counting
- * sets is the one that best explained hypertrophy and strength outcomes in Pelland et al. 2026.
+ * sets is the one that best explained hypertrophy and strength outcomes in Pelland et al. (Sports Med, 2025).
  */
 export function groupContributions(profile: Pick<ExerciseProfile, 'pattern' | 'primary' | 'secondary'>): Partial<Record<MuscleGroupKey, number>> {
   if (NON_VOLUME_PATTERNS.includes(profile.pattern)) return {};

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { reportIfAiConsentMissing } from '@/lib/consent-events';
 import { useAuth } from '@/lib/auth';
 import { useEntitlements } from '@/lib/entitlements-context';
@@ -27,6 +27,16 @@ interface GeneratedRoutine {
   progression_notes: string;
 }
 
+interface BlueprintPurchase {
+  id: string;
+  blueprint_id: string;
+  weeks: number;
+  used_at: string | null;
+  refunded_at: string | null;
+  routine: GeneratedRoutine | null;
+  created_at: string;
+}
+
 interface RoutineGeneratorProps {
   onBack: () => void;
 }
@@ -43,7 +53,30 @@ export function RoutineGenerator({ onBack }: RoutineGeneratorProps) {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showStorefront, setShowStorefront] = useState(false);
 
-  const isUnlocked = hasFeature('biometric');
+  const [purchases, setPurchases] = useState<BlueprintPurchase[]>([]);
+  const loadPurchases = useCallback(async () => {
+    const { data } = await supabase.from('blueprint_purchases')
+      .select('id, blueprint_id, weeks, used_at, refunded_at, routine, created_at').order('created_at', { ascending: false });
+    const list = (data ?? []) as BlueprintPurchase[];
+    setPurchases(list);
+    return list;
+  }, []);
+  useEffect(() => {
+    void loadPurchases();
+    // Back from Stripe: the payment confirmation can arrive a few seconds after the redirect.
+    if (!/checkout=success/.test(window.location.hash)) return;
+    let tries = 0;
+    const id = window.setInterval(async () => {
+      tries++;
+      const list = await loadPurchases();
+      if (list.some((p) => !p.used_at && !p.refunded_at) || tries >= 10) window.clearInterval(id);
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [loadPurchases]);
+  const credit = purchases.find((p) => !p.used_at && !p.refunded_at) ?? null;
+  const delivered = purchases.filter((p) => p.routine && !p.refunded_at);
+
+  const isUnlocked = hasFeature('biometric') || !!credit;
 
   const generate = async () => {
     setLoading(true);
@@ -67,6 +100,7 @@ export function RoutineGenerator({ onBack }: RoutineGeneratorProps) {
         throw new Error(typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : 'Generation failed.');
       }
       if (body.routine) {
+        void loadPurchases();
         setRoutine(body.routine);
         setExpandedDay(body.routine.days[0]?.day ?? null);
       } else {
@@ -122,6 +156,14 @@ export function RoutineGenerator({ onBack }: RoutineGeneratorProps) {
         </div>
       ) : (
         <>
+          {credit && !hasFeature('biometric') && (
+            <div className="px-5 mb-4" data-testid="blueprint-credit">
+              <div className="rounded-2xl border border-lime/40 bg-lime/[0.06] p-4">
+                <p className="text-sm font-bold text-cloud">Your {credit.weeks}-week Blueprint is ready to build</p>
+                <p className="mt-1 text-xs text-cloud-dim">Generating uses your Blueprint once. Your programme is saved here afterwards, and you can download it as a PDF.</p>
+              </div>
+            </div>
+          )}
           {/* Current biometrics summary */}
           <div className="px-5 mb-5">
             <Card className="p-4">
@@ -289,6 +331,23 @@ export function RoutineGenerator({ onBack }: RoutineGeneratorProps) {
       )}
 
       <StripeUpgradeModal open={showUpgrade} currentTier={tier} onClose={() => setShowUpgrade(false)} />
+      {delivered.length > 0 && (
+        <div className="px-5 mt-6" data-testid="my-blueprints">
+          <h3 className="mb-2 text-sm font-semibold text-cloud">Your Blueprints</h3>
+          <div className="space-y-2">
+            {delivered.map((p) => (
+              <button key={p.id} type="button" onClick={() => { if (p.routine) { setRoutine(p.routine); setExpandedDay(p.routine.days[0]?.day ?? null); window.scrollTo({ top: 0, behavior: 'smooth' }); } }}
+                className="flex w-full items-center gap-3 rounded-xl border border-ink-border bg-ink-surface px-4 py-3 text-left">
+                <FileText className="h-4 w-4 flex-shrink-0 text-lime" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-cloud">{p.routine?.routine_name ?? 'Blueprint'}</span>
+                  <span className="block text-[11px] text-cloud-dim">{p.weeks}-week plan · {new Date(p.used_at ?? p.created_at).toLocaleDateString()}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <BlueprintStorefront open={showStorefront} onClose={() => setShowStorefront(false)} />
     </div>
   );

@@ -37,6 +37,25 @@ const coachPlans = {
 type Tier = keyof typeof plans;
 type Billing = 'weekly' | 'monthly' | 'annual';
 
+/**
+ * Moves a running subscription to another plan in place (no second subscription). Stripe charges or credits
+ * the prorated difference straight away on the saved card. Returns false when it is already on that price.
+ */
+async function switchPlan(stripe: Stripe, subId: string, name: string, amount: number, interval: 'week' | 'month' | 'year', metadata: Record<string, string>): Promise<boolean> {
+  const sub = await stripe.subscriptions.retrieve(subId);
+  const item = sub.items.data[0];
+  if (!item) throw new Error('subscription_without_item');
+  if (item.price.unit_amount === amount && item.price.recurring?.interval === interval && sub.metadata.tier === metadata.tier && sub.metadata.coach_tier === metadata.coach_tier) return false;
+  const product = await stripe.products.create({ name });
+  await stripe.subscriptions.update(subId, {
+    items: [{ id: item.id, price_data: { currency: 'gbp', unit_amount: amount, product: product.id, recurring: { interval } } }],
+    proration_behavior: 'always_invoice',
+    cancel_at_period_end: false,
+    metadata,
+  });
+  return true;
+}
+
 function response(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -66,16 +85,26 @@ Deno.serve(async (req: Request) => {
     const body = await req.json() as { tier?: string; billing?: string; type?: string };
     const stripe = new Stripe(stripeSecret, { apiVersion: '2024-12-18.acacia' });
 
+    // Return addresses only on the app's own sites (no redirect to other domains after paying).
     const origin = req.headers.get('Origin') ?? '';
-    if (!origin.startsWith('https://') && !origin.startsWith('http://localhost')) {
-      return response({ error: 'Checkout origin is not allowed.' }, 400);
-    }
+    const allowed = origin === 'https://aistartfit1.vercel.app'
+      || /^https:\/\/aistartfit1-[a-z0-9-]+\.vercel\.app$/.test(origin)
+      || /^http:\/\/localhost(:\d+)?$/.test(origin);
+    if (!allowed) return response({ error: 'Checkout origin is not allowed.' }, 400);
+
+    // The person's current plan: no second subscription, and no Daily Pass on top of a running one.
+    const { data: me } = await supabase.from('profiles')
+      .select('subscription_tier, subscription_status, stripe_customer_id, stripe_subscription_id, coach_tier, coach_status, coach_stripe_subscription_id').eq('id', user.id).maybeSingle();
+    const subscribed = !!me && me.subscription_tier !== 'free' && (me.subscription_status === 'active' || me.subscription_status === 'trialing');
+    const customer = typeof me?.stripe_customer_id === 'string' && me.stripe_customer_id.startsWith('cus_') ? me.stripe_customer_id : null;
+    const who = customer ? { customer } : { customer_email: user.email };
 
     // Daily Pass — one-off payment for 24h full access
     if (body.type === 'daily') {
+      if (subscribed) return response({ error: 'You already have full access with your plan.', code: 'already_subscribed' }, 409);
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
-        customer_email: user.email,
+        ...who,
         client_reference_id: user.id,
         line_items: [{
           quantity: 1,
@@ -85,6 +114,7 @@ Deno.serve(async (req: Request) => {
             product_data: { name: dailyPass.name },
           },
         }],
+        metadata: { user_id: user.id, type: 'daily_pass' },
         payment_intent_data: {
           metadata: { user_id: user.id, type: 'daily_pass' },
         },
@@ -100,11 +130,16 @@ Deno.serve(async (req: Request) => {
     if (body.type === 'coach') {
       const coachTier = body.tier as keyof typeof coachPlans;
       const coachBilling = body.billing === 'annual' ? 'annual' : body.billing === 'monthly' ? 'monthly' : null;
-      if (!(coachTier in coachPlans) || !coachBilling) return response({ error: 'Choose a valid coach plan.' }, 400);
+      if (typeof coachTier !== 'string' || !Object.hasOwn(coachPlans, coachTier) || !coachBilling) return response({ error: 'Choose a valid coach plan.' }, 400);
       const cp = coachPlans[coachTier];
+      if (me && me.coach_tier !== 'free' && (me.coach_status === 'active' || me.coach_status === 'trialing') && me.coach_stripe_subscription_id) {
+        const changed = await switchPlan(stripe, me.coach_stripe_subscription_id, cp.name, cp[coachBilling], coachBilling === 'annual' ? 'year' : 'month', { user_id: user.id, kind: 'coach', coach_tier: coachTier });
+        if (!changed) return response({ error: 'You are already on this coach plan.', code: 'same_plan' }, 409);
+        return response({ url: `${origin}/#/coach?checkout=success`, switched: true });
+      }
       const coachSession = await stripe.checkout.sessions.create({
         mode: 'subscription',
-        customer_email: user.email,
+        ...who,
         client_reference_id: user.id,
         line_items: [{
           quantity: 1,
@@ -126,15 +161,20 @@ Deno.serve(async (req: Request) => {
 
     const tier = body.tier as Tier;
     const billing = body.billing as Billing;
-    if (!(tier in plans) || !['weekly', 'monthly', 'annual'].includes(billing)) {
+    if (typeof tier !== 'string' || !Object.hasOwn(plans, tier) || !['weekly', 'monthly', 'annual'].includes(billing)) {
       return response({ error: 'Choose a valid plan and billing period.' }, 400);
     }
 
     const plan = plans[tier];
     const interval = billing === 'annual' ? 'year' : billing === 'weekly' ? 'week' : 'month';
+    if (subscribed && me?.stripe_subscription_id) {
+      const changed = await switchPlan(stripe, me.stripe_subscription_id, plan.name, plan[billing], interval, { user_id: user.id, tier });
+      if (!changed) return response({ error: 'You are already on this plan.', code: 'same_plan' }, 409);
+      return response({ url: `${origin}/#/profile?checkout=success`, switched: true });
+    }
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      customer_email: user.email,
+      ...who,
       client_reference_id: user.id,
       line_items: [{
         quantity: 1,

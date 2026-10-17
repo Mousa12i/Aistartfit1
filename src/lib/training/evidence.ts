@@ -21,8 +21,8 @@ export const TRAINING_REFERENCES: Record<string, Reference> = {
   },
   pelland2026: {
     id: 'pelland2026',
-    short: 'Pelland et al., 2026',
-    citation: 'Pelland JC, Remmert JF, Robinson ZP, Hinson SR, Zourdos MC. The resistance training dose response: meta-regressions exploring the effects of weekly volume and frequency on muscle hypertrophy and strength gains. Sports Med. 2026;56(2):481–505.',
+    short: 'Pelland et al., Sports Med',
+    citation: 'Pelland JC, Remmert JF, Robinson ZP, Hinson SR, Zourdos MC. The resistance training dose response: meta-regressions exploring the effects of weekly volume and frequency on muscle hypertrophy and strength gains. Sports Med. Published online 2025 (PubMed 41343037).',
     url: doi('10.1007/s40279-025-02344-w'),
   },
   iversen2021: {
@@ -225,7 +225,7 @@ export const CLAIMS: Record<string, Claim> = Object.fromEntries(
     ),
     study(
       'vol_fractional',
-      'A 2026 meta-regression found that more weekly volume increases both muscle size and strength with diminishing returns, and that counting a set as one set for the main muscle and half a set for helping muscles (fractional counting) fitted the results best. StartFit counts sets this way.',
+      'A 2025 meta-regression found that more weekly volume increases both muscle size and strength with diminishing returns, and that counting a set as one set for the main muscle and half a set for helping muscles (fractional counting) fitted the results best. StartFit counts sets this way.',
       ['pelland2026'],
     ),
     study(
@@ -240,7 +240,7 @@ export const CLAIMS: Record<string, Claim> = Object.fromEntries(
     // ---- frequency ----
     study(
       'freq_hypertrophy',
-      'Meta-analyses disagree a little on frequency. A 2016 analysis found training a muscle twice a week grew more muscle than once a week, on a volume-equated basis. A 2019 analysis found no significant difference when volume was equated, and a 2026 meta-regression found frequency had a negligible effect on growth. Training each muscle on two or more days is therefore a safe default, mainly useful for spreading the weekly sets.',
+      'Meta-analyses disagree a little on frequency. A 2016 analysis found training a muscle twice a week grew more muscle than once a week, on a volume-equated basis. A 2019 analysis found no significant difference when volume was equated, and a 2025 meta-regression found frequency had a negligible effect on growth. Training each muscle on two or more days is therefore a safe default, mainly useful for spreading the weekly sets.',
       ['pelland2026', 'schoenfeld2019freq', 'schoenfeld2016freq'],
     ),
     study(

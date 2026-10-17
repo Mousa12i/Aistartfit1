@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 // In-app account deletion (App Store Review Guideline 5.1.1(v); UK GDPR right to erasure).
 // Deletes the signed-in person's account and all their data:
-//   1. stops a running Stripe subscription so they are not charged again, then asks Stripe to delete the
+//   1. stops running Stripe subscriptions (own plan and coach plan) so they are not charged again, then asks Stripe to delete the
 //      customer record (Stripe still keeps the payment records the law requires it to keep);
 //   2. deletes routines they created (the only table that does not cascade from the account);
 //   3. deletes the auth user — every other table holding their data cascades from it.
@@ -45,19 +45,26 @@ Deno.serve(async (req: Request) => {
     const db = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
     // 1. stop billing
-    const { data: profile } = await db.from('profiles').select('stripe_subscription_id, subscription_status, stripe_customer_id').eq('id', user.id).maybeSingle();
-    const subId = (profile?.stripe_subscription_id as string | null | undefined) ?? null;
-    if (subId && ACTIVE_STATUSES.includes(String(profile?.subscription_status ?? ''))) {
+    const { data: profile } = await db.from('profiles')
+      .select('stripe_subscription_id, subscription_status, stripe_customer_id, coach_stripe_subscription_id, coach_status').eq('id', user.id).maybeSingle();
+    // The person's own plan and, for coaches, the coach plan: both are stopped before anything is deleted.
+    const running = [
+      { id: (profile?.stripe_subscription_id as string | null | undefined) ?? null, status: String(profile?.subscription_status ?? '') },
+      { id: (profile?.coach_stripe_subscription_id as string | null | undefined) ?? null, status: String(profile?.coach_status ?? '') },
+    ].filter((x) => x.id && ACTIVE_STATUSES.includes(x.status));
+    if (running.length) {
       const secret = Deno.env.get('STRIPE_SECRET_KEY');
       if (!secret) return json({ error: 'Your subscription could not be cancelled automatically. Please cancel it from Manage subscription first, then delete your account.' }, 409);
-      try {
-        const stripe = new Stripe(secret, { apiVersion: '2024-12-18.acacia' });
-        await stripe.subscriptions.cancel(subId);
-      } catch (e) {
-        const code = (e as { code?: string }).code;
-        if (code !== 'resource_missing') {
-          console.error('delete-account: stripe cancel failed', e);
-          return json({ error: 'Your subscription could not be cancelled. Nothing was deleted. Please try again or cancel it from Manage subscription first.' }, 502);
+      const stripe = new Stripe(secret, { apiVersion: '2024-12-18.acacia' });
+      for (const sub of running) {
+        try {
+          await stripe.subscriptions.cancel(sub.id!);
+        } catch (e) {
+          const code = (e as { code?: string }).code;
+          if (code !== 'resource_missing') {
+            console.error('delete-account: stripe cancel failed', e);
+            return json({ error: 'Your subscription could not be cancelled. Nothing was deleted. Please try again or cancel it from Manage subscription first.' }, 502);
+          }
         }
       }
     }

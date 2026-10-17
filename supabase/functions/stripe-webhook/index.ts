@@ -21,6 +21,9 @@ const TIER_MAP: Record<string, 'free' | 'pro' | 'plus'> = {
 
 const COACH_TIERS = ['coach', 'coach_pro', 'studio'];
 
+/** Weeks per blueprint (same list as blueprint-checkout). */
+const BLUEPRINT_WEEKS: Record<string, number> = { bp_1w: 1, bp_2w: 2, bp_4w: 4, bp_3m: 12, bp_6m: 24 };
+
 /** Coach plans live in their own columns, so they never touch the person's own Pro / Pro+ plan. */
 // deno-lint-ignore no-explicit-any
 async function applyCoachSubscription(supabase: any, subscription: Stripe.Subscription, deleted: boolean): Promise<Response> {
@@ -85,7 +88,7 @@ Deno.serve(async (req: Request) => {
     // Fires for both subscriptions and one-off payments (daily pass, blueprints).
     // For subscriptions, this is the earliest reliable signal that payment succeeded.
     // For daily passes, this is the ONLY signal — no subscription event fires.
-    if (event.type === 'checkout.session.completed') {
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
       const customerId = typeof session.customer === 'string' ? session.customer : null;
@@ -93,16 +96,38 @@ Deno.serve(async (req: Request) => {
 
       // ── Daily Pass: one-off 24h full access ──
       const sessionType = session.metadata?.type ?? session.metadata?.Type ?? null;
-      const paymentIntentMetadata = session.payment_intent
-        ? typeof session.payment_intent === 'string'
-          ? null
-          : session.payment_intent.metadata
-        : null;
+      // Webhook payloads carry the payment intent only as an id, so its metadata is fetched when needed.
+      let paymentIntentMetadata: Record<string, string> | null = null;
+      if (session.payment_intent) {
+        if (typeof session.payment_intent !== 'string') paymentIntentMetadata = session.payment_intent.metadata;
+        else if (session.mode === 'payment' && !sessionType) {
+          paymentIntentMetadata = (await stripe.paymentIntents.retrieve(session.payment_intent)).metadata;
+        }
+      }
       const piType = paymentIntentMetadata?.type ?? null;
 
       if (sessionType === 'daily_pass' || piType === 'daily_pass') {
         if (!userId) return reply({ received: true, note: 'no user_id for daily pass' });
-        const periodEnd = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        // Bank transfers and similar methods complete later (async_payment_succeeded); grant only when paid.
+        if (session.payment_status !== 'paid') return reply({ received: true, note: 'daily pass not paid yet' });
+        // Stripe can deliver the same event more than once: each checkout is applied once.
+        const { data: first } = await supabase.from('stripe_processed')
+          .upsert({ key: `daily:${session.id}` }, { onConflict: 'key', ignoreDuplicates: true }).select('key');
+        if (!first?.length) return reply({ received: true, note: 'duplicate' });
+        const { data: cur } = await supabase.from('profiles')
+          .select('subscription_tier, subscription_status, subscription_current_period_end').eq('id', userId).maybeSingle();
+        // A running Pro / Pro+ subscription is never replaced by a pass (the pass would end it after 24h),
+        // so the pass is refunded in full instead.
+        if (cur && (cur.subscription_status === 'active' || cur.subscription_status === 'trialing') && cur.subscription_tier !== 'free') {
+          const pi = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+          if (pi) await stripe.refunds.create({ payment_intent: pi, reason: 'duplicate' }).catch((e) => console.error('Webhook: pass refund failed', e));
+          console.error('Webhook: daily pass bought during an active subscription, refunded', userId);
+          return reply({ received: true, note: 'active subscription kept, pass refunded' });
+        }
+        // A second pass bought before the first ends adds 24h to the remaining time.
+        const curEnd = cur?.subscription_status === 'daily_pass' && cur.subscription_current_period_end ? Date.parse(String(cur.subscription_current_period_end)) : NaN;
+        const base = Number.isFinite(curEnd) && curEnd > Date.now() ? curEnd : Date.now();
+        const periodEnd = new Date(base + 24 * 60 * 60 * 1000).toISOString();
         const update: ProfileUpdate = {
           subscription_tier: 'plus',
           subscription_status: 'daily_pass',
@@ -114,8 +139,28 @@ Deno.serve(async (req: Request) => {
         return reply({ received: true });
       }
 
-      // ── Blueprint: one-off purchase, no tier change ──
+      // ── Blueprint: one-off purchase = one credit for the AI routine generator ──
       if (sessionType === 'blueprint' || piType === 'blueprint') {
+        if (!userId) return reply({ received: true, note: 'no user_id for blueprint' });
+        if (session.payment_status !== 'paid') return reply({ received: true, note: 'blueprint not paid yet' });
+        const bpId = session.metadata?.blueprint_id ?? paymentIntentMetadata?.blueprint_id ?? '';
+        const weeks = BLUEPRINT_WEEKS[bpId];
+        if (!weeks) {
+          console.error('Webhook: unknown blueprint', bpId, session.id);
+          return reply({ received: true, note: 'unknown blueprint' });
+        }
+        const { error } = await supabase.from('blueprint_purchases').upsert({
+          user_id: userId,
+          blueprint_id: bpId,
+          weeks,
+          amount_pence: session.amount_total ?? 0,
+          stripe_session_id: session.id,
+          stripe_payment_intent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null,
+        }, { onConflict: 'stripe_session_id', ignoreDuplicates: true });
+        if (error) {
+          console.error('Webhook: blueprint save failed', error);
+          return reply({ error: 'save_failed' }, 500); // Stripe retries
+        }
         return reply({ received: true });
       }
 
@@ -194,13 +239,14 @@ Deno.serve(async (req: Request) => {
       // Match by subscription_id first (most reliable for updates)
       const { data: bySubId } = await supabase
         .from('profiles')
-        .select('id, stripe_subscription_id, subscription_status')
+        .select('id, stripe_subscription_id, subscription_status, subscription_tier, subscription_current_period_end')
         .eq('stripe_subscription_id', subscription.id)
         .maybeSingle();
 
       if (bySubId) {
         // Idempotency check
-        if (bySubId.subscription_status === status && !isDeleted) {
+        const samePeriod = bySubId.subscription_current_period_end && Date.parse(String(bySubId.subscription_current_period_end)) === Date.parse(periodEnd);
+        if (bySubId.subscription_status === status && bySubId.subscription_tier === effectiveTier && samePeriod && !isDeleted) {
           return reply({ received: true, note: 'duplicate' });
         }
         await supabase.from('profiles').update(update).eq('id', bySubId.id);
@@ -240,6 +286,31 @@ Deno.serve(async (req: Request) => {
         metadataUserId,
       });
       return reply({ received: true, note: 'no matching user' });
+    }
+
+    // ─── refunds ──────────────────────────────────────────────────
+    // A refunded Daily Pass ends straight away. (Subscription refunds are handled by Stripe's
+    // subscription events when the subscription is cancelled.)
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      if (!charge.refunded) return reply({ received: true, note: 'partial refund' }); // only a full refund ends the purchase
+      const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+      if (!piId) return reply({ received: true });
+      const pi = await stripe.paymentIntents.retrieve(piId);
+      if (pi.metadata?.type === 'blueprint') {
+        await supabase.from('blueprint_purchases').update({ refunded_at: new Date().toISOString() }).eq('stripe_payment_intent', piId).is('refunded_at', null);
+        return reply({ received: true });
+      }
+      if (pi.metadata?.type !== 'daily_pass' || !pi.metadata?.user_id) return reply({ received: true });
+      const { data: cur } = await supabase.from('profiles').select('subscription_status').eq('id', pi.metadata.user_id).maybeSingle();
+      if (cur?.subscription_status !== 'daily_pass') return reply({ received: true, note: 'no running pass' });
+      await supabase.from('profiles').update({
+        subscription_tier: 'free',
+        subscription_status: 'refunded',
+        subscription_current_period_end: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', pi.metadata.user_id);
+      return reply({ received: true });
     }
 
     return reply({ received: true });

@@ -31,5 +31,13 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
 
 export interface AcwrResult { acwr: number | null; acuteLoad: number; chronicLoad: number; hasEnoughData: boolean; band: 'not_enough_data' | 'undertraining' | 'steady' | 'elevated' | 'spike' }
 export function computeACWR(sessionDates: { date: string; totalSets: number }[], now: Date): AcwrResult { const dayMs = 86400000; const acuteLoad = sessionDates.filter((s) => new Date(s.date).getTime() >= now.getTime() - 7 * dayMs).reduce((sum, s) => sum + s.totalSets, 0); const chronicSessions = sessionDates.filter((s) => { const time = new Date(s.date).getTime(); return time >= now.getTime() - 28 * dayMs && time < now.getTime() - 7 * dayMs; }); const weeks = new Set(sessionDates.map((s) => { const date = new Date(s.date); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - date.getDay()); return date.toISOString().slice(0, 10); })); if (weeks.size < 4) return { acwr: null, acuteLoad, chronicLoad: 0, hasEnoughData: false, band: 'not_enough_data' }; const chronicLoad = chronicSessions.reduce((sum, s) => sum + s.totalSets, 0); const ratio = chronicLoad > 0 ? acuteLoad / (chronicLoad / 21) : null; const band = ratio == null ? 'not_enough_data' : ratio < 0.8 ? 'undertraining' : ratio <= 1.3 ? 'steady' : ratio <= 1.5 ? 'elevated' : 'spike'; return { acwr: ratio, acuteLoad, chronicLoad, hasEnoughData: true, band }; }
-export function estimate1RM(weight: number, reps: number, rir: number | null): number { const effectiveReps = reps + (rir ?? 0); return effectiveReps > 0 && weight > 0 ? weight * (1 + effectiveReps / 30) : 0; }
+/**
+ * Estimated 1RM by Epley's formula, weight × (1 + reps / 30), with reps in reserve counted as reps.
+ * A true single (1 rep, 0 in reserve) is the 1RM itself, so it returns the weight unchanged.
+ */
+export function estimate1RM(weight: number, reps: number, rir: number | null): number {
+  const effectiveReps = reps + Math.max(0, rir ?? 0);
+  if (!(effectiveReps > 0) || !(weight > 0)) return 0;
+  return effectiveReps === 1 ? weight : weight * (1 + effectiveReps / 30);
+}
 export function formatMuscleName(muscle: RecoveryMuscle): string { return MUSCLE_LABELS[muscle] ?? muscle; }

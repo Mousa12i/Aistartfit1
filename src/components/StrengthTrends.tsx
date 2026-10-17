@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { fetchAllUserSetLogs } from '@/lib/data';
-import type { WorkoutSetLog } from '@/lib/types';
+import { estimate1RM } from '@/lib/recovery/readiness';
 import { Card } from '@/components/ui/Card';
 import { LoadingState, EmptyState } from '@/components/ui/States';
 import { TrendingUp, Lock, Dumbbell } from 'lucide-react';
@@ -29,33 +29,22 @@ export function StrengthTrends({ exerciseName }: { exerciseName: string }) {
     (async () => {
       try {
         const allLogs = await fetchAllUserSetLogs();
+        // Working sets only (warm-ups and assessments would distort the estimate).
         const exerciseLogs = allLogs.filter(
-          (l) => l.exercise_name.toLowerCase() === exerciseName.toLowerCase() && l.weight && l.completed
+          (l) => l.exercise_name.toLowerCase() === exerciseName.toLowerCase() && l.weight && l.weight > 0 && l.reps > 0 && l.completed
+            && l.set_type !== 'warm_up' && l.set_type !== 'assessment'
         );
 
-        // Group by session (by session_id), find max weight per session
-        const bySession: Record<string, WorkoutSetLog[]> = {};
-        for (const log of exerciseLogs) {
-          if (!bySession[log.session_id]) bySession[log.session_id] = [];
-          bySession[log.session_id].push(log);
-        }
+        const bySession = new Map<string, typeof exerciseLogs>();
+        for (const log of exerciseLogs) bySession.set(log.session_id, [...(bySession.get(log.session_id) ?? []), log]);
 
-        // Convert to chronological points
-        const points: StrengthPoint[] = Object.entries(bySession)
-          .map(([sessionId, logs]) => {
+        // One point per workout, in date order: the set with the best estimated 1RM, and the heaviest weight lifted.
+        const points: StrengthPoint[] = [...bySession.values()]
+          .map((logs) => {
             const maxWeight = Math.max(...logs.map((l) => l.weight ?? 0));
-            const bestSet = logs.find((l) => l.weight === maxWeight);
-            const reps = bestSet?.reps ?? 1;
-            // Epley formula for estimated 1RM
-            const estimated1RM = maxWeight > 0 ? Math.round(maxWeight * (1 + reps / 30)) : 0;
+            const estimated1RM = Math.round(Math.max(...logs.map((l) => estimate1RM(l.weight ?? 0, l.reps, l.rir))) * 10) / 10;
             const volume = logs.reduce((sum, l) => sum + (l.weight ?? 0) * l.reps, 0);
-            return {
-              date: sessionId,
-              label: '',
-              maxWeight,
-              estimated1RM,
-              volume,
-            };
+            return { date: logs[0].session_completed_at, label: '', maxWeight, estimated1RM, volume };
           })
           .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -169,7 +158,7 @@ export function StrengthTrends({ exerciseName }: { exerciseName: string }) {
         </div>
       )}
       <p className="text-[9px] text-cloud-muted mt-2">
-        1RM estimated using the Epley formula. Values are approximate and for tracking purposes only.
+        Estimated 1RM: Epley formula, weight × (1 + (reps + reps in reserve) ÷ 30), best working set per workout. An estimate for tracking, not a tested maximum.
       </p>
     </Card>
   );

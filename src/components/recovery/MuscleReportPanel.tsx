@@ -26,7 +26,7 @@ const BAND_TEXT: Record<MuscleRecoveryState['weeklySetBand'], string> = {
 
 function color(pct: number | null): string {
   if (pct == null) return '#7f93a3';
-  return pct < 50 ? '#ff5964' : pct < 90 ? '#ffd34f' : '#5fe28c';
+  return pct <= 50 ? '#ff5964' : pct <= 85 ? '#ffd34f' : '#5fe28c'; // same bands as the 3D model's colours
 }
 
 function ago(iso: string | null): string {

@@ -65,7 +65,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const origin = req.headers.get('Origin') ?? '';
-    if (!origin.startsWith('https://') && !origin.startsWith('http://localhost')) {
+    const allowed = origin === 'https://aistartfit1.vercel.app'
+      || /^https:\/\/aistartfit1-[a-z0-9-]+\.vercel\.app$/.test(origin)
+      || /^http:\/\/localhost(:\d+)?$/.test(origin);
+    if (!allowed) {
       return response({ error: 'Invalid origin.' }, 400);
     }
 

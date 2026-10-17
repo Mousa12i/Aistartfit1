@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { fetchAllUserSetLogs, fetchUserSessions } from '@/lib/data';
+import { fetchAllUserSetLogs, fetchExercisesByIds } from '@/lib/data';
 import { Card } from '@/components/ui/Card';
 import { LoadingState, EmptyState } from '@/components/ui/States';
 import { Dumbbell, Lock } from 'lucide-react';
@@ -40,21 +40,20 @@ export function TrainingVolumeAnalytics() {
     }
     (async () => {
       try {
-        const sessions = await fetchUserSessions(50);
-        const completed = sessions.filter((s) => s.completed_at);
-        if (completed.length === 0) {
+        // Last 50 finished workouts, working sets only; each exercise counts for its primary muscle in the library.
+        const setLogs = (await fetchAllUserSetLogs()).filter((l) => l.completed && l.weight && l.weight > 0 && l.reps > 0 && l.set_type !== 'warm_up');
+        if (setLogs.length === 0) {
           setLoading(false);
           return;
         }
-        const setLogs = await fetchAllUserSetLogs();
+        const exercises = await fetchExercisesByIds([...new Set(setLogs.map((l) => l.exercise_id))]);
+        const muscleOf = new Map(exercises.map((e) => [e.id, e.primary_muscle as string]));
         const muscleVolume: Record<string, { volume: number; sets: number }> = {};
 
         for (const log of setLogs) {
-          if (!log.weight || !log.completed) continue;
-          const exerciseName = log.exercise_name.toLowerCase();
-          const muscle = guessMuscleFromExercise(exerciseName);
+          const muscle = muscleOf.get(log.exercise_id) ?? 'full_body';
           if (!muscleVolume[muscle]) muscleVolume[muscle] = { volume: 0, sets: 0 };
-          muscleVolume[muscle].volume += log.weight * log.reps;
+          muscleVolume[muscle].volume += (log.weight ?? 0) * log.reps;
           muscleVolume[muscle].sets += 1;
         }
 
@@ -111,7 +110,7 @@ export function TrainingVolumeAnalytics() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-sm font-semibold text-cloud">Training Volume</h3>
-          <p className="text-[11px] text-cloud-dim">Total: {totalVolume.toLocaleString()} kg lifted</p>
+          <p className="text-[11px] text-cloud-dim">Last 50 workouts, working sets: {totalVolume.toLocaleString()} kg lifted (weight × reps)</p>
         </div>
         <div className="w-10 h-10 rounded-xl bg-lime/10 flex items-center justify-center">
           <Dumbbell className="w-5 h-5 text-lime" />
@@ -142,16 +141,4 @@ export function TrainingVolumeAnalytics() {
       </ResponsiveContainer>
     </Card>
   );
-}
-
-function guessMuscleFromExercise(name: string): string {
-  if (name.includes('push') || name.includes('bench') || name.includes('press') || name.includes('dip')) return 'chest';
-  if (name.includes('pull') || name.includes('row') || name.includes('deadlift') || name.includes('lat')) return 'back';
-  if (name.includes('squat') || name.includes('lunge') || name.includes('leg') || name.includes('calf')) return 'legs';
-  if (name.includes('shoulder') || name.includes('overhead') || name.includes('lateral') || name.includes('raise')) return 'shoulders';
-  if (name.includes('curl') || name.includes('tricep') || name.includes('bicep') || name.includes('arm')) return 'arms';
-  if (name.includes('plank') || name.includes('sit') || name.includes('crunch') || name.includes('core')) return 'core';
-  if (name.includes('hip') || name.includes('glute') || name.includes('bridge')) return 'glutes';
-  if (name.includes('burpee') || name.includes('jump') || name.includes('mountain')) return 'cardio';
-  return 'full_body';
 }

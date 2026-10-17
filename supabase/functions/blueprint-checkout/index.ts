@@ -43,14 +43,16 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json() as { blueprintId?: string };
     const blueprintId = body.blueprintId;
-    if (!blueprintId || !(blueprintId in blueprints)) {
+    if (typeof blueprintId !== 'string' || !Object.hasOwn(blueprints, blueprintId)) {
       return response({ error: 'Select a valid blueprint to purchase.' }, 400);
     }
 
+    // Return addresses only on the app's own sites.
     const origin = req.headers.get('Origin') ?? '';
-    if (!origin.startsWith('https://') && !origin.startsWith('http://localhost')) {
-      return response({ error: 'Checkout origin is not allowed.' }, 400);
-    }
+    const allowed = origin === 'https://aistartfit1.vercel.app'
+      || /^https:\/\/aistartfit1-[a-z0-9-]+\.vercel\.app$/.test(origin)
+      || /^http:\/\/localhost(:\d+)?$/.test(origin);
+    if (!allowed) return response({ error: 'Checkout origin is not allowed.' }, 400);
 
     const bp = blueprints[blueprintId];
     const stripe = new Stripe(stripeSecret, { apiVersion: '2024-12-18.acacia' });
@@ -66,10 +68,11 @@ Deno.serve(async (req: Request) => {
           unit_amount: bp.price,
           product_data: {
             name: bp.name,
-            description: `Custom AI-generated ${bp.weeks === 1 ? '1-week' : `${bp.weeks / 7 < 1 ? `${bp.weeks}-week` : bp.weeks >= 12 ? `${bp.weeks / 4}-month` : `${bp.weeks}-week`}`} training blueprint powered by o3-mini`,
+            description: `One custom AI training programme with a ${bp.weeks}-week progression plan (OpenAI o3-mini)`,
           },
         },
       }],
+      metadata: { user_id: user.id, type: 'blueprint', blueprint_id: blueprintId },
       payment_intent_data: {
         metadata: {
           user_id: user.id,

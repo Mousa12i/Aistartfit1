@@ -1,6 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
+import { effectiveTier } from '../_shared/tier.ts';
 import { languageInstruction } from '../_shared/language.ts';
+
+const TIER_LIMITS: Record<string, number> = { free: 5, pro: 30, plus: 100 };
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -76,7 +79,17 @@ Deno.serve(async (req: Request) => {
     const sources = evidence.filter((source) => body.evidenceIds.includes(source.id));
 
     if (!openAiKey) return response({ error: 'Recovery interpretation is not configured' }, 503);
-    const { data: langRow } = await consentDb.from('profiles').select('preferred_language').eq('id', user.id).maybeSingle();
+    const { data: langRow } = await consentDb.from('profiles')
+      .select('preferred_language, subscription_tier, subscription_status, subscription_current_period_end').eq('id', user.id).maybeSingle();
+
+    // Same daily AI limits as the coaches (shared counter in ai_usage).
+    const limit = TIER_LIMITS[effectiveTier(langRow)] ?? TIER_LIMITS.free;
+    const isAdmin = !!user.email_confirmed_at && (user.email ?? '').toLowerCase() === 'mossaismael551@gmail.com';
+    const { data: usage } = await consentDb.from('ai_usage').select('request_count, last_request_at').eq('user_id', user.id).maybeSingle();
+    const now = new Date();
+    const sameDay = !!usage?.last_request_at && new Date(usage.last_request_at as string).toDateString() === now.toDateString();
+    const used = sameDay ? Number(usage?.request_count ?? 0) : 0;
+    if (!isAdmin && used >= limit) return response({ error: 'daily_limit_reached', limit, message: `You've used all ${limit} AI actions for today.` }, 429);
 
     const prompt = [
       'You are a Sports Science Recovery Engine generating an evidence-informed scientific report for a specific muscle group.',
@@ -126,6 +139,10 @@ Deno.serve(async (req: Request) => {
     if (typeof report.summary !== 'string' || !Array.isArray(report.actions) || !Array.isArray(report.limitations) || !Array.isArray(report.sources)) return response({ error: 'Recovery interpretation returned an invalid report' }, 502);
     const validSources = report.sources.every((source) => typeof source === 'object' && source !== null && sources.some((allowed) => allowed.id === (source as { id?: unknown }).id));
     if (!validSources) return response({ error: 'Recovery interpretation used an unverified source' }, 502);
+    if (!isAdmin) {
+      if (usage) await consentDb.from('ai_usage').update({ request_count: used + 1, last_request_at: now.toISOString() }).eq('user_id', user.id);
+      else await consentDb.from('ai_usage').insert({ user_id: user.id, request_count: 1, last_request_at: now.toISOString() });
+    }
     return response({ report: { ...report, facts: body.muscleState, readiness: body.readiness } });
   } catch {
     return response({ error: 'Recovery interpretation failed' }, 500);

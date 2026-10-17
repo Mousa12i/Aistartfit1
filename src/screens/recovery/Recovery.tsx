@@ -419,4 +419,5 @@ function PlannedVsDone({ routineMap, stateByMuscle }: { routineMap: ReturnType<t
 
 function getRecoveryValue(state: MuscleRecoveryState | undefined): number | null { return state?.recoveryPercent == null ? null : Math.round(state.recoveryPercent); }
 function getHoursLeft(state: MuscleRecoveryState | undefined): number | null { if (!state || state.recoveryPercent == null || state.hoursSinceLastTrained == null) return null; return Math.max(0, Math.ceil(state.hoursNeeded - state.hoursSinceLastTrained)); }
-function recoveryColor(value: number): string { return value < 50 ? '#ff5964' : value < 90 ? '#ffd34f' : '#5fe28c'; }
+/** Same colour bands as the 3D model (up to 50 red, up to 85 amber, above green). */
+function recoveryColor(value: number): string { return value <= 50 ? '#ff5964' : value <= 85 ? '#ffd34f' : '#5fe28c'; }

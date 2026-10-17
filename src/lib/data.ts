@@ -368,21 +368,26 @@ export async function fetchSessionSetLogs(sessionId: string): Promise<WorkoutSet
 
 // ============ AI CONVERSATIONS ============
 
-export async function fetchAllUserSetLogs(): Promise<WorkoutSetLog[]> {
+/** Set logs of the person's last 50 finished workouts, each with its session's finish time. */
+export async function fetchAllUserSetLogs(): Promise<(WorkoutSetLog & { session_completed_at: string })[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
   const { data: sessions } = await supabase
     .from('workout_sessions')
-    .select('id')
-    .order('completed_at', { ascending: false }, )
+    .select('id, completed_at')
+    .eq('user_id', user.id)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
     .limit(50);
   if (!sessions || sessions.length === 0) return [];
-  const sessionIds = sessions.map((s) => s.id);
+  const at = new Map((sessions as { id: string; completed_at: string }[]).map((x) => [x.id, x.completed_at]));
   const { data, error } = await supabase
     .from('workout_set_logs')
     .select('*')
-    .in('session_id', sessionIds)
+    .in('session_id', [...at.keys()])
     .order('set_number');
   if (error) throw error;
-  return (data as WorkoutSetLog[]) ?? [];
+  return ((data as WorkoutSetLog[]) ?? []).map((l) => ({ ...l, session_completed_at: at.get(l.session_id) ?? '' }));
 }
 
 export async function fetchConversations(): Promise<AiConversation[]> {

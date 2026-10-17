@@ -1,6 +1,7 @@
 import { languageInstruction } from '../_shared/language.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from '../_shared/consent.ts';
+import { effectiveTier } from '../_shared/tier.ts';
 import { COACH_CLAIMS } from './evidence.generated.ts';
 import { formatTrainingContext, loadTrainingContext } from '../_shared/training-context.ts';
 import { buildContext, buildSystemPrompt, hasRedFlag, parseModelJson, sanitizeReply } from './coach.ts';
@@ -59,10 +60,10 @@ Deno.serve(async (req: Request) => {
 
     // ---- Usage limits (shared with the other coaches) ----
     const { data: profileRow } = await db.from('profiles').select('*').eq('id', user.id).maybeSingle();
-    // An ended 24h pass is reset to free by the expire_daily_passes job within 5 minutes.
-    const tier = (profileRow?.subscription_tier as string) ?? 'free';
+    // An ended 24h pass counts as free straight away (the expire_daily_passes job tidies the row).
+    const tier: string = effectiveTier(profileRow);
     const limit = TIER_LIMITS[tier] ?? TIER_LIMITS.free;
-    const isAdmin = ADMIN_EMAILS.includes((user.email ?? '').toLowerCase());
+    const isAdmin = !!user.email_confirmed_at && ADMIN_EMAILS.includes((user.email ?? '').toLowerCase());
     const { data: usage } = await db.from('ai_usage').select('*').eq('user_id', user.id).maybeSingle();
     const now = new Date();
     const last = usage ? new Date(usage.last_request_at as string) : null;

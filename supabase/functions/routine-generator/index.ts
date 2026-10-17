@@ -63,9 +63,30 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Profile not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const isAdmin = (user.email ?? '').toLowerCase() === 'mossaismael551@gmail.com';
+    const isAdmin = !!user.email_confirmed_at && (user.email ?? '').toLowerCase() === 'mossaismael551@gmail.com';
+    // Pro+ (or admin) can generate any time; otherwise one unused, unrefunded Blueprint purchase is one generation.
+    let credit: { id: string; weeks: number } | null = null;
     if (effectiveTier(profile) !== 'plus' && !isAdmin) {
-      return new Response(JSON.stringify({ error: 'AI Biometric Routine Generator is a Pro+ exclusive feature.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const { data: credits } = await supabase.from('blueprint_purchases').select('id, weeks')
+        .eq('user_id', user.id).is('used_at', null).is('refunded_at', null).order('created_at').limit(1);
+      credit = ((credits ?? []) as { id: string; weeks: number }[])[0] ?? null;
+      if (!credit) {
+        return new Response(JSON.stringify({ error: 'AI Biometric Routine Generator is a Pro+ feature, or buy a one-off Blueprint.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // Pro+ generations count toward the shared daily AI limit (100); a Blueprint generation is already paid for.
+    const now = new Date();
+    let usedToday = 0;
+    let hasUsageRow = false;
+    if (!credit && !isAdmin) {
+      const { data: usage } = await supabase.from('ai_usage').select('request_count, last_request_at').eq('user_id', user.id).maybeSingle();
+      hasUsageRow = !!usage;
+      const sameDay = !!usage?.last_request_at && new Date(usage.last_request_at as string).toDateString() === now.toDateString();
+      usedToday = sameDay ? Number(usage?.request_count ?? 0) : 0;
+      if (usedToday >= 100) {
+        return new Response(JSON.stringify({ error: 'daily_limit_reached', message: "You've used all 100 AI actions for today." }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     }
 
     const body = await req.json().catch(() => ({})) as { fatigue?: string; soreness?: string };
@@ -177,7 +198,11 @@ Return ONLY valid JSON:
   "progression_notes": "how to progress week to week, and when to take a lighter week"
 }`;
 
-    const userPrompt = `Generate a weekly workout program for this user:\n\n${contextParts.join('\n')}`;
+    const planWeeks = credit?.weeks ?? null;
+    const weeksLine = planWeeks && planWeeks > 1
+      ? `\n\nThis is a ${planWeeks}-week Blueprint: keep the same weekly structure, and in "progression_notes" give a week-by-week plan for all ${planWeeks} weeks (load or rep targets per week, using double progression), with a lighter week roughly every 4 to 6 weeks or when performance drops.`
+      : '';
+    const userPrompt = `Generate a weekly workout program for this user:\n\n${contextParts.join('\n')}${weeksLine}`;
 
     const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -233,7 +258,19 @@ Return ONLY valid JSON:
     }
     if (dropped > 0) console.warn(`routine-generator dropped ${dropped} exercises not in the library`);
 
-    return new Response(JSON.stringify({ routine }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // The Blueprint credit is used only once a routine was actually delivered.
+    if (credit) {
+      const { data: used } = await supabase.from('blueprint_purchases').update({ used_at: new Date().toISOString(), routine })
+        .eq('id', credit.id).is('used_at', null).select('id');
+      if (!used?.length) {
+        return new Response(JSON.stringify({ error: 'This Blueprint was already used.' }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+    if (!credit && !isAdmin) {
+      if (hasUsageRow) await supabase.from('ai_usage').update({ request_count: usedToday + 1, last_request_at: now.toISOString() }).eq('user_id', user.id);
+      else await supabase.from('ai_usage').insert({ user_id: user.id, request_count: 1, last_request_at: now.toISOString() });
+    }
+    return new Response(JSON.stringify({ routine, blueprint_weeks: planWeeks }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error('Routine generator error:', err);
     return new Response(JSON.stringify({ error: 'An unexpected error occurred.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

@@ -97,7 +97,7 @@ export function StripeUpgradeModal({ open, onClose }: StripeUpgradeModalProps) {
             Get 24 hours of full Pro+ access — all exercises, AI coach, biometric routine generator, and analytics. Perfect for trying before you subscribe.
           </p>
           <div className="space-y-2">
-            {['Full Pro+ access for 24 hours', 'AI Biometric Routine Generator (o3-mini)', 'Exercise Vault (153+ exercises)', 'All analytics and meal plans'].map((f) => (
+            {['Full Pro+ access for 24 hours', 'AI Biometric Routine Generator (o3-mini)', 'Per-exercise strength trends', 'All analytics and meal plans'].map((f) => (
               <div key={f} className="flex items-start gap-2 text-xs text-cloud-dim">
                 <Check className="w-3.5 h-3.5 text-lime flex-shrink-0 mt-0.5" />
                 <span>{f}</span>
