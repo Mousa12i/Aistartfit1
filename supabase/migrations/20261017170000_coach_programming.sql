@@ -8,7 +8,8 @@
 ALTER TABLE public.workout_plan_exercises
   ADD COLUMN IF NOT EXISTS tempo text CHECK (tempo IS NULL OR tempo ~ '^[0-9X]{1,2}(-[0-9X]{1,2}){1,3}$'),
   ADD COLUMN IF NOT EXISTS group_label text CHECK (group_label IS NULL OR group_label ~ '^[A-H]$'),
-  ADD COLUMN IF NOT EXISTS alt_exercise_id uuid REFERENCES public.exercises(id) ON DELETE SET NULL;
+  -- No foreign key on purpose: a second key to exercises would make the existing exercise embeds ambiguous.
+  ADD COLUMN IF NOT EXISTS alt_exercise_id uuid;
 
 -- Whose plan is this, and may the caller (a coach) change it?
 CREATE OR REPLACE FUNCTION public.coach_can_edit_plan(p uuid)
