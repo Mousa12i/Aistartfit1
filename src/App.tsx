@@ -13,6 +13,7 @@ import { OnboardingSetup } from '@/screens/onboarding/OnboardingSetup';
 import { AuthScreen } from '@/screens/auth/AuthScreen';
 import { NewPasswordScreen } from '@/screens/auth/NewPasswordScreen';
 import { CoachHome } from '@/screens/coach/CoachHome';
+import { WeekManager } from '@/screens/coach/WeekManager';
 import { AthleteView } from '@/screens/coach/AthleteView';
 import { JoinRoute, MyCoach } from '@/screens/coach/MyCoach';
 import { RolePicker } from '@/screens/coach/RolePicker';
@@ -238,6 +239,7 @@ function AppContent() {
           <Route path="/biometric-assessment" element={<BiometricAssessment onBack={() => navigate('/profile')} onComplete={() => navigate('/profile')} />} />
           <Route path="/routine-generator" element={<AiConsentRoute><RoutineGenerator onBack={() => navigate('/training')} /></AiConsentRoute>} />
           <Route path="/coach" element={<ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
+          <Route path="/coach/week" element={<ErrorBoundary label="Week"><WeekManager /></ErrorBoundary>} />
           <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />
           <Route path="/my-coach" element={<ErrorBoundary label="My coach"><MyCoach /></ErrorBoundary>} />
           <Route path="/join/:code" element={<JoinRoute />} />

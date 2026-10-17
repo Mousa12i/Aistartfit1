@@ -139,6 +139,12 @@ export const TRAINING_REFERENCES: Record<string, Reference> = {
     citation: 'Schumann M, Feuerbacher JF, Sünkeler M, et al. Compatibility of concurrent aerobic and strength training for skeletal muscle size and function: an updated systematic review and meta-analysis. Sports Med. 2022;52(3):601–612.',
     url: doi('10.1007/s40279-021-01587-7'),
   },
+  watson2015: {
+    id: 'watson2015',
+    short: 'Watson et al., 2015 (AASM/SRS)',
+    citation: 'Watson NF, Badr MS, Belenky G, et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the American Academy of Sleep Medicine and Sleep Research Society. Sleep. 2015;38(6):843–844.',
+    url: doi('10.5665/sleep.4716'),
+  },
   knowles2018: {
     id: 'knowles2018',
     short: 'Knowles et al., 2018',

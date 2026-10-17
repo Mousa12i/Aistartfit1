@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, ChevronLeft, ClipboardCheck, Copy, MessageCircle, Search, Settings2, Share2, Sparkles, UserPlus, AlertTriangle } from 'lucide-react';
+import { CalendarCheck, Check, ChevronLeft, ChevronRight, ClipboardCheck, Copy, MessageCircle, Search, Settings2, Share2, Sparkles, UserPlus, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
@@ -147,6 +147,18 @@ export function CoachHome() {
           <Kpi value={`${Math.round(summary.avgTraining * 100)}%`} label={t('coach.kpiTraining')} />
           <Kpi value={`${Math.round(summary.avgFood * 100)}%`} label={t('coach.kpiFood')} />
         </div>
+      )}
+
+      {roster && count > 0 && (
+        <button type="button" onClick={() => navigate('/coach/week')} data-testid="week-entry"
+          className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-lime/30 bg-gradient-to-br from-lime/[0.10] to-transparent px-4 py-3.5 text-start">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-lime/15"><CalendarCheck className="h-5 w-5 text-lime" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-cloud">{t('week.title')}</span>
+            <span className="block text-xs leading-snug text-cloud-dim">{t('week.entryBody')}</span>
+          </span>
+          <ChevronRight className="h-5 w-5 text-cloud-muted rtl:rotate-180" />
+        </button>
       )}
 
       {roster && count > 0 && (
