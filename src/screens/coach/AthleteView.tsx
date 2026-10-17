@@ -14,6 +14,7 @@ import { rateFeedback, weightRate, type RateStatus } from '@/lib/nutrition/engin
 import { strengthProgress } from '@/lib/coach/progress';
 import { Avatar, Lightbox, PrivatePhoto, RiskBadge, ScoreDots, Sheet, Sparkline, StatBlock, humanize, reasonText, relativeDays } from './ui';
 import { ChatThread } from './ChatThread';
+import { AthleteBodyMap } from './AthleteBodyMap';
 
 type Tab = 'overview' | 'training' | 'nutrition' | 'checkins' | 'chat';
 type T = (k: MessageKey, v?: Record<string, string | number>) => string;
@@ -148,6 +149,8 @@ function Overview({ row, detail, now, me, t, onRemoved }: { row: RosterRow; deta
           <p className="mt-2 text-[10px] text-cloud-muted">{t('coach.riskRuleNote')}</p>
         </div>
       )}
+
+      <AthleteBodyMap row={row} />
 
       <div className="grid grid-cols-2 gap-2">
         <StatBlock label={t('coach.statSessions7')} value={row.workouts_7d} sub={t('coach.statSessions28', { n: row.workouts_28d })} />

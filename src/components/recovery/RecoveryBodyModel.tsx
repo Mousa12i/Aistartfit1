@@ -14,6 +14,8 @@ interface RecoveryBodyModelProps {
   muscleStates: MuscleRecoveryState[];
   selectedMuscle: RecoveryMuscle | null;
   onSelectMuscle: (muscle: RecoveryMuscle) => void;
+  /** Optional wording (e.g. translated, for the coach view). The colors and mesh are the same. */
+  text?: { title: string; subtitle: string; badge: string; legend: [string, string, string, string]; footer: string | null };
 }
 
 interface RegionDef {
@@ -282,15 +284,15 @@ function LoadingBody() {
   return <Html center className="whitespace-nowrap text-xs font-bold text-[#8ad8f3]">Loading 3D model...</Html>;
 }
 
-export function RecoveryBodyModel({ muscleStates, selectedMuscle, onSelectMuscle }: RecoveryBodyModelProps) {
+export function RecoveryBodyModel({ muscleStates, selectedMuscle, onSelectMuscle, text }: RecoveryBodyModelProps) {
   return (
     <div className="overflow-hidden rounded-2xl border border-[#183744] bg-[#071018]">
       <div className="flex items-center justify-between border-b border-[#183744] px-4 py-3">
         <div>
-          <p className="text-[15px] font-black tracking-wide">3D RECOVERY HEATMAP</p>
-          <p className="text-[11px] text-cloud-dim">Click any body region to focus and generate a live AI report</p>
+          <p className="text-[15px] font-black tracking-wide">{text?.title ?? '3D RECOVERY HEATMAP'}</p>
+          <p className="text-[11px] text-cloud-dim">{text?.subtitle ?? 'Click any body region to focus and generate a live AI report'}</p>
         </div>
-        <span className="rounded-full border border-[#76d8ed]/40 bg-[#12303b] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#8ad8f3]">LIVE MESH</span>
+        <span className="rounded-full border border-[#76d8ed]/40 bg-[#12303b] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#8ad8f3]">{text?.badge ?? 'LIVE MESH'}</span>
       </div>
       <div className="h-[440px] touch-none sm:h-[540px]">
         <Canvas camera={{ position: [0, 0.2, 3], fov: 34 }} dpr={[1, 2]} gl={{ antialias: true, alpha: false }}>
@@ -304,14 +306,16 @@ export function RecoveryBodyModel({ muscleStates, selectedMuscle, onSelectMuscle
         </Canvas>
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-[#183744] px-4 py-2 text-[10px] text-cloud-dim">
-        <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#EF4444]" />Fatigued 0–50%</span>
-        <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#F59E0B]" />Recovering 51–85%</span>
-        <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#10B981]" />Ready 86–100%</span>
-        <span><i className="mr-1 inline-block h-2 w-2 rounded-full bg-[#6b7785]" />No data</span>
+        <span><i className="me-1 inline-block h-2 w-2 rounded-full bg-[#EF4444]" />{text?.legend[0] ?? 'Fatigued 0–50%'}</span>
+        <span><i className="me-1 inline-block h-2 w-2 rounded-full bg-[#F59E0B]" />{text?.legend[1] ?? 'Recovering 51–85%'}</span>
+        <span><i className="me-1 inline-block h-2 w-2 rounded-full bg-[#10B981]" />{text?.legend[2] ?? 'Ready 86–100%'}</span>
+        <span><i className="me-1 inline-block h-2 w-2 rounded-full bg-[#6b7785]" />{text?.legend[3] ?? 'No data'}</span>
       </div>
-      <div className="border-t border-[#183744] px-4 py-2 text-[10px] leading-relaxed text-cloud-dim">
-        Colors are applied directly to the body mesh surface via procedural vertex coloring. Each region maps to live Supabase recovery scores. Click a region to focus the camera and generate a scientific report.
-      </div>
+      {text?.footer !== null && (
+        <div className="border-t border-[#183744] px-4 py-2 text-[10px] leading-relaxed text-cloud-dim">
+          {text?.footer ?? 'Colors are applied directly to the body mesh surface via procedural vertex coloring. Each region maps to live Supabase recovery scores. Click a region to focus the camera and generate a scientific report.'}
+        </div>
+      )}
     </div>
   );
 }
