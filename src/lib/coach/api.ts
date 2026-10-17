@@ -13,7 +13,7 @@ function fail(error: { message?: string } | null | undefined): never {
 /** Turns a database error code into a key the screens translate. */
 export function coachErrorKey(err: unknown): string {
   const m = err instanceof Error ? err.message : String(err);
-  for (const code of ['code_not_found', 'own_code', 'already_has_coach', 'coach_full', 'not_your_athlete', 'kcal_out_of_range', 'protein_out_of_range']) {
+  for (const code of ['code_not_found', 'own_code', 'already_has_coach', 'coach_full', 'not_your_athlete', 'kcal_out_of_range', 'protein_out_of_range', 'coach_not_ready']) {
     if (m.includes(code)) return code;
   }
   return 'generic';
@@ -35,6 +35,72 @@ export async function setAthleteRole(userId: string): Promise<void> {
 export async function saveCoachBrand(userId: string, patch: { coach_brand_name?: string | null; coach_bio?: string | null; coach_checkin_day?: number }): Promise<void> {
   const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
   if (error) fail(error);
+}
+
+// ---------------- public profile and code of conduct ----------------
+
+/** Must match coach_terms_current() in the database; changing the rules means a new version every coach accepts again. */
+export const COACH_TERMS_VERSION = '2026-10-17';
+
+export interface Certification { name: string; issuer: string | null; year: number | null }
+
+export interface CoachProfile {
+  coach_id: string;
+  display_name: string | null;
+  brand_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  headline: string | null;
+  specialties: string[];
+  years: number | null;
+  languages: string[];
+  format: 'online' | 'in_person' | 'hybrid' | null;
+  location: string | null;
+  philosophy: string | null;
+  certifications: Certification[];
+  insured: boolean | null;
+  dietitian: boolean | null;
+  checkin_day: number | null;
+  terms_ok: boolean;
+  terms_accepted_at: string | null;
+}
+
+export interface CoachProfilePatch {
+  display_name?: string | null;
+  coach_brand_name?: string | null;
+  coach_bio?: string | null;
+  coach_headline?: string | null;
+  coach_specialties?: string[];
+  coach_years?: number | null;
+  coach_languages?: string[];
+  coach_format?: 'online' | 'in_person' | 'hybrid' | null;
+  coach_location?: string | null;
+  coach_philosophy?: string | null;
+  coach_certifications?: Certification[];
+  coach_insured?: boolean | null;
+  coach_dietitian?: boolean | null;
+}
+
+export async function saveCoachProfile(userId: string, patch: CoachProfilePatch): Promise<void> {
+  const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+  if (error) fail(error);
+}
+
+export async function acceptCoachTerms(): Promise<void> {
+  const { error } = await supabase.rpc('accept_coach_terms', { version: COACH_TERMS_VERSION });
+  if (error) fail(error);
+}
+
+export async function coachProfileByCode(code: string): Promise<CoachProfile | null> {
+  const { data, error } = await supabase.rpc('coach_profile_by_code', { code });
+  if (error) fail(error);
+  return (data as CoachProfile | null) ?? null;
+}
+
+export async function myCoachProfile(): Promise<CoachProfile | null> {
+  const { data, error } = await supabase.rpc('my_coach_profile');
+  if (error) fail(error);
+  return (data as CoachProfile | null) ?? null;
 }
 
 // ---------------- links ----------------

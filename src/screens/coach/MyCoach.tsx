@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Camera, Check, ChevronLeft, ClipboardCheck, LogOut, MessageCircle, ShieldCheck } from 'lucide-react';
+import { Camera, Check, ChevronDown, ChevronLeft, ClipboardCheck, LogOut, MessageCircle, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
 import {
-  coachErrorKey, coachPreview, endCoachLink, fetchMyCoach, joinCoach, listCheckins, submitCheckin,
-  type CheckinInput, type CoachCard, type MyCoach as MyCoachInfo, type Checkin,
+  coachErrorKey, coachProfileByCode, endCoachLink, fetchMyCoach, joinCoach, listCheckins, myCoachProfile, submitCheckin,
+  type CheckinInput, type CoachProfile, type MyCoach as MyCoachInfo, type Checkin,
 } from '@/lib/coach/api';
 import { normalizeCode, weekOf } from '@/lib/coach/insights';
 import { Avatar, Sheet } from './ui';
 import { ChatThread } from './ChatThread';
+import { CoachProfileCard } from './CoachProfileCard';
 
 const PENDING_KEY = 'startfit.joinCode';
 const field = 'w-full rounded-xl border border-ink-border bg-ink-bg px-3.5 py-2.5 text-sm text-cloud placeholder:text-cloud-muted focus:border-lime/50 focus:outline-none';
@@ -71,7 +72,7 @@ type T = (k: MessageKey, v?: Record<string, string | number>) => string;
 
 function JoinFlow({ onJoined, t }: { onJoined: () => void; t: T }) {
   const [code, setCode] = useState(() => pendingJoinCode() ?? '');
-  const [preview, setPreview] = useState<CoachCard | null>(null);
+  const [preview, setPreview] = useState<CoachProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -79,7 +80,7 @@ function JoinFlow({ onJoined, t }: { onJoined: () => void; t: T }) {
     setError(null);
     setBusy(true);
     try {
-      const p = await coachPreview(normalizeCode(raw));
+      const p = await coachProfileByCode(normalizeCode(raw));
       if (!p) setError(t('coach.err_code_not_found'));
       setPreview(p);
     } catch {
@@ -109,13 +110,8 @@ function JoinFlow({ onJoined, t }: { onJoined: () => void; t: T }) {
     const name = preview.brand_name || preview.display_name || '';
     return (
       <div className="space-y-4" data-testid="join-consent">
-        <div className="flex items-center gap-3 rounded-2xl border border-ink-border bg-ink-surface p-4">
-          <Avatar id={preview.coach_id} name={preview.display_name} url={preview.avatar_url} size={52} />
-          <div className="min-w-0">
-            <div className="truncate text-lg font-bold text-cloud">{name}</div>
-            {preview.bio && <p dir="auto" className="mt-0.5 text-xs leading-relaxed text-cloud-dim">{preview.bio}</p>}
-          </div>
-        </div>
+        <CoachProfileCard p={preview} />
+        {!preview.terms_ok && <p className="rounded-xl bg-gold/10 px-3 py-2 text-xs text-gold">{t('coach.err_coach_not_ready')}</p>}
         <div className="rounded-2xl border border-lime/30 bg-lime/[0.04] p-4">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-cloud"><ShieldCheck className="h-4 w-4 text-lime" />{t('coach.consentTitle', { name })}</div>
           <ul className="space-y-1.5 text-xs text-cloud">{SHARED.map((k) => <li key={k} className="flex gap-2"><Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-lime" />{t(k)}</li>)}</ul>
@@ -124,7 +120,7 @@ function JoinFlow({ onJoined, t }: { onJoined: () => void; t: T }) {
           <p className="mt-3 text-[11px] leading-relaxed text-cloud-muted">{t('coach.consentLeave')}</p>
         </div>
         {error && <p className="text-xs text-rust">{error}</p>}
-        <button type="button" onClick={join} disabled={busy} className="w-full rounded-xl bg-lime py-3.5 text-sm font-bold text-ink-bg disabled:opacity-50" data-testid="join-confirm">{t('coach.agreeJoin')}</button>
+        <button type="button" onClick={join} disabled={busy || !preview.terms_ok} className="w-full rounded-xl bg-lime py-3.5 text-sm font-bold text-ink-bg disabled:opacity-50" data-testid="join-confirm">{t('coach.agreeJoin')}</button>
         <button type="button" onClick={() => setPreview(null)} className="w-full py-2 text-xs text-cloud-dim">{t('common.cancel')}</button>
       </div>
     );
@@ -162,6 +158,9 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
   const done = checkins.some((c) => c.week_of === thisWeek);
   const name = coach.brand_name || coach.display_name || '';
   const lastReply = checkins.find((c) => c.coach_reply);
+  const [about, setAbout] = useState<CoachProfile | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  useEffect(() => { myCoachProfile().then(setAbout).catch(() => undefined); }, []);
 
   return (
     <div className="space-y-4">
@@ -173,6 +172,15 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
         </div>
         <button type="button" onClick={() => setLeaveOpen(true)} aria-label={t('coach.leave')} className="text-cloud-muted hover:text-rust"><LogOut className="h-5 w-5 rtl:-scale-x-100" /></button>
       </div>
+
+      {about && (
+        <div>
+          <button type="button" onClick={() => setAboutOpen((v) => !v)} className="flex w-full items-center justify-between rounded-xl px-1 py-1 text-xs font-semibold text-cloud-dim" data-testid="about-coach">
+            {t('coach.aboutCoach')}<ChevronDown className={cn('h-4 w-4 transition-transform', aboutOpen && 'rotate-180')} />
+          </button>
+          {aboutOpen && <div className="mt-2"><CoachProfileCard p={about} /></div>}
+        </div>
+      )}
 
       {!done && (
         <button type="button" onClick={() => setTab('checkin')} className="flex w-full items-center gap-3 rounded-2xl border border-lime/40 bg-lime/[0.06] p-4 text-start" data-testid="checkin-prompt">

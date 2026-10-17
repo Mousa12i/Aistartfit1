@@ -45,6 +45,18 @@ export interface Profile {
   coach_brand_name?: string | null;
   coach_bio?: string | null;
   coach_checkin_day?: number;
+  coach_headline?: string | null;
+  coach_specialties?: string[];
+  coach_years?: number | null;
+  coach_languages?: string[];
+  coach_format?: 'online' | 'in_person' | 'hybrid' | null;
+  coach_location?: string | null;
+  coach_philosophy?: string | null;
+  coach_certifications?: { name: string; issuer: string | null; year: number | null }[];
+  coach_insured?: boolean | null;
+  coach_dietitian?: boolean | null;
+  coach_terms_version?: string | null;
+  coach_terms_accepted_at?: string | null;
   created_at: string;
   updated_at: string;
 }

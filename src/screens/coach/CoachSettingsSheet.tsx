@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { ShieldCheck, Trash2, UserRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
@@ -14,8 +15,7 @@ const input = 'w-full rounded-xl border border-ink-border bg-ink-bg px-3.5 py-2.
 export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; onClose: () => void; userId: string }) {
   const { profile, refreshProfile } = useAuth();
   const { t } = useI18n();
-  const [brand, setBrand] = useState('');
-  const [bio, setBio] = useState('');
+  const navigate = useNavigate();
   const [day, setDay] = useState(1);
   const [replies, setReplies] = useState<QuickReply[]>([]);
   const [title, setTitle] = useState('');
@@ -25,8 +25,6 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
 
   useEffect(() => {
     if (!open) return;
-    setBrand(profile?.coach_brand_name ?? '');
-    setBio(profile?.coach_bio ?? '');
     setDay(profile?.coach_checkin_day ?? 1);
     listReplies(userId).then(setReplies).catch(() => undefined);
   }, [open, profile, userId]);
@@ -34,7 +32,7 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
   const save = async () => {
     setError(null);
     try {
-      await saveCoachBrand(userId, { coach_brand_name: brand.trim() || null, coach_bio: bio.trim() || null, coach_checkin_day: day });
+      await saveCoachBrand(userId, { coach_checkin_day: day });
       await refreshProfile();
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1600);
@@ -65,14 +63,14 @@ export function CoachSettingsSheet({ open, onClose, userId }: { open: boolean; o
   return (
     <Sheet open={open} title={t('coach.settings')} onClose={onClose}>
       <div className="space-y-4">
-        <label className="block">
-          <span className="mb-1 block text-xs text-cloud-dim">{t('coach.brandName')}</span>
-          <input value={brand} onChange={(e) => setBrand(e.target.value)} maxLength={60} placeholder={t('coach.brandPlaceholder')} className={input} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-cloud-dim">{t('coach.bio')}</span>
-          <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={300} rows={3} placeholder={t('coach.bioPlaceholder')} className={input} />
-        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => { onClose(); navigate('/coach/profile'); }} className="flex items-center justify-center gap-2 rounded-xl border border-ink-border py-3 text-xs font-semibold text-cloud" data-testid="edit-coach-profile">
+            <UserRound className="h-4 w-4 text-lime" />{t('coach.editProfile')}
+          </button>
+          <button type="button" onClick={() => { onClose(); navigate('/coach/rules'); }} className="flex items-center justify-center gap-2 rounded-xl border border-ink-border py-3 text-xs font-semibold text-cloud">
+            <ShieldCheck className="h-4 w-4 text-lime" />{t('coach.viewRules')}
+          </button>
+        </div>
         <div>
           <span className="mb-1.5 block text-xs text-cloud-dim">{t('coach.checkinDay')}</span>
           <div className="flex flex-wrap gap-1.5">

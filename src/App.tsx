@@ -14,6 +14,8 @@ import { AuthScreen } from '@/screens/auth/AuthScreen';
 import { NewPasswordScreen } from '@/screens/auth/NewPasswordScreen';
 import { CoachHome } from '@/screens/coach/CoachHome';
 import { WeekManager } from '@/screens/coach/WeekManager';
+import { CoachRulesPage, CoachSetup } from '@/screens/coach/CoachSetup';
+import { COACH_TERMS_VERSION } from '@/lib/coach/api';
 import { AthleteView } from '@/screens/coach/AthleteView';
 import { JoinRoute, MyCoach } from '@/screens/coach/MyCoach';
 import { RolePicker } from '@/screens/coach/RolePicker';
@@ -161,6 +163,11 @@ function AppContent() {
     return <Navigate to="/onboarding-setup" replace />;
   }
 
+  // Coaches set up their public profile and accept the coach rules before anything else (athletes cannot join before).
+  if (isCoach && profile?.coach_terms_version !== COACH_TERMS_VERSION && location.pathname !== '/coach/rules') {
+    return <CoachSetup />;
+  }
+
   // Authenticated with onboarding complete — main app
   const navigateToScreen = (screen: { name: string; [key: string]: string | null }) => {
     switch (screen.name) {
@@ -204,7 +211,7 @@ function AppContent() {
   // Determine if we should hide bottom nav
   const hideNavRoutes = ['/workout/'];
   const fullScreenRoute = hideNavRoutes.some((r) => location.pathname.startsWith(r)) ||
-    location.pathname === '/onboarding-setup';
+    location.pathname === '/onboarding-setup' || location.pathname === '/coach/profile';
 
   // Determine if this is an exercise detail page (full-screen viewer)
   const isExerciseDetail = location.pathname.startsWith('/exercise/');
@@ -242,6 +249,8 @@ function AppContent() {
           <Route path="/biometric-assessment" element={<BiometricAssessment onBack={() => navigate('/profile')} onComplete={() => navigate('/profile')} />} />
           <Route path="/routine-generator" element={<AiConsentRoute><RoutineGenerator onBack={() => navigate('/training')} /></AiConsentRoute>} />
           <Route path="/coach" element={isCoach ? <Navigate to="/" replace /> : <ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
+          <Route path="/coach/profile" element={<ErrorBoundary label="Coach profile"><CoachSetup mode="edit" /></ErrorBoundary>} />
+          <Route path="/coach/rules" element={<ErrorBoundary label="Coach rules"><CoachRulesPage /></ErrorBoundary>} />
           <Route path="/coach/week" element={<ErrorBoundary label="Week"><WeekManager /></ErrorBoundary>} />
           <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />
           <Route path="/my-coach" element={<ErrorBoundary label="My coach"><MyCoach /></ErrorBoundary>} />
