@@ -504,4 +504,6 @@ export const fr: Messages = {
   'muscle.sideDelts': "Deltoïdes latéraux",
   'muscle.biceps': "Biceps",
   'muscle.triceps': "Triceps",
+  'nav.team': "Équipe",
+  'coach.myTraining': "Mon entraînement",
 };

@@ -505,4 +505,6 @@ export const ar: Messages = {
   'muscle.sideDelts': "الكتف الجانبي",
   'muscle.biceps': "البايسبس",
   'muscle.triceps': "الترايسبس",
+  'nav.team': "الفريق",
+  'coach.myTraining': "تمريني",
 };

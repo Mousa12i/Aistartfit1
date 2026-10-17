@@ -147,7 +147,9 @@ function AppContent() {
   }
 
   // Authenticated but onboarding not completed
-  if (profile && !profile.onboarding_completed) {
+  // Coaches skip the athlete questionnaire (they can fill their own profile later from Edit profile).
+  const isCoach = profile?.account_type === 'coach';
+  if (profile && !profile.onboarding_completed && !isCoach) {
     if (location.pathname === '/onboarding-setup') {
       return (
         <OnboardingSetup
@@ -213,13 +215,14 @@ function AppContent() {
   const hasOwnActionBar = isExerciseDetail || location.pathname.startsWith('/programme/');
   const hideNav = fullScreenRoute || isNutritionCoach || hasOwnActionBar;
   // Coach screens have their own chat bar; the floating AI coach button would cover it.
-  const isCoachRoute = location.pathname.startsWith('/coach') || location.pathname.startsWith('/my-coach');
+  const isCoachRoute = location.pathname.startsWith('/coach') || location.pathname.startsWith('/my-coach') || (isCoach && location.pathname === '/');
 
   return (
     <>
-      <AppShell activeTab={activeTab} onTabChange={handleTabChange} onNavigate={(path) => navigate(path)} hideNav={hideNav}>
+      <AppShell isCoach={isCoach} activeTab={activeTab} onTabChange={handleTabChange} onNavigate={(path) => navigate(path)} hideNav={hideNav}>
         <Routes>
-          <Route path="/" element={<Home onNavigate={navigateToScreen} onTabChange={handleTabChange} />} />
+          <Route path="/" element={isCoach ? <ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary> : <Home onNavigate={navigateToScreen} onTabChange={handleTabChange} />} />
+          <Route path="/me" element={<Home onNavigate={navigateToScreen} onTabChange={handleTabChange} />} />
           <Route path="/home" element={<Navigate to="/" replace />} />
           <Route path="/training" element={<Training onNavigate={navigateToScreen} />} />
           <Route path="/training/coach" element={<ErrorBoundary label="Training coach"><TrainingCoach /></ErrorBoundary>} />
@@ -238,7 +241,7 @@ function AppContent() {
           <Route path="/recovery" element={<ErrorBoundary label="Recovery"><Recovery onBack={() => navigate('/')} /></ErrorBoundary>} />
           <Route path="/biometric-assessment" element={<BiometricAssessment onBack={() => navigate('/profile')} onComplete={() => navigate('/profile')} />} />
           <Route path="/routine-generator" element={<AiConsentRoute><RoutineGenerator onBack={() => navigate('/training')} /></AiConsentRoute>} />
-          <Route path="/coach" element={<ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
+          <Route path="/coach" element={isCoach ? <Navigate to="/" replace /> : <ErrorBoundary label="Coach"><CoachHome /></ErrorBoundary>} />
           <Route path="/coach/week" element={<ErrorBoundary label="Week"><WeekManager /></ErrorBoundary>} />
           <Route path="/coach/athlete/:id" element={<ErrorBoundary label="Athlete"><AthleteView /></ErrorBoundary>} />
           <Route path="/my-coach" element={<ErrorBoundary label="My coach"><MyCoach /></ErrorBoundary>} />

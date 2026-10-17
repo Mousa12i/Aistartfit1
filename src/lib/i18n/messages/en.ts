@@ -518,6 +518,8 @@ export const en = {
   'muscle.sideDelts': "Side delts",
   'muscle.biceps': "Biceps",
   'muscle.triceps': "Triceps",
+  'nav.team': "Team",
+  'coach.myTraining': "My training",
 } as const;
 
 export type MessageKey = keyof typeof en;

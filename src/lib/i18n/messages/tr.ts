@@ -504,4 +504,6 @@ export const tr: Messages = {
   'muscle.sideDelts': "Yan omuz",
   'muscle.biceps': "Biseps",
   'muscle.triceps': "Triseps",
+  'nav.team': "Takım",
+  'coach.myTraining': "Antrenmanım",
 };

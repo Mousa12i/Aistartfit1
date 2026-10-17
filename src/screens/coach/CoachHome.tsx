@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CalendarCheck, Check, ChevronLeft, ChevronRight, ClipboardCheck, Copy, MessageCircle, Search, Settings2, Share2, Sparkles, UserPlus, AlertTriangle } from 'lucide-react';
+import { CalendarCheck, Check, Dumbbell, ChevronLeft, ChevronRight, ClipboardCheck, Copy, MessageCircle, Search, Settings2, Share2, Sparkles, UserPlus, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
@@ -125,13 +125,20 @@ export function CoachHome() {
   return (
     <div className="min-h-screen bg-ink-bg px-5 pb-36 pt-5" dir={dir} data-testid="coach-home">
       <header className="mb-5 flex items-center gap-3">
-        <button type="button" onClick={() => navigate('/')} aria-label={t('common.back')} className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-elevated text-cloud-dim">
-          <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
-        </button>
+        {profile?.account_type !== 'coach' && (
+          <button type="button" onClick={() => navigate('/')} aria-label={t('common.back')} className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-elevated text-cloud-dim">
+            <ChevronLeft className="h-5 w-5 rtl:rotate-180" />
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs text-cloud-dim">{profile?.coach_brand_name || t('coach.portal')}</div>
           <h1 className="truncate text-[22px] font-bold leading-tight text-cloud">{t('coach.hello', { name: firstName || t('coach.coach') })}</h1>
         </div>
+        {profile?.account_type === 'coach' && (
+          <button type="button" onClick={() => navigate('/me')} aria-label={t('coach.myTraining')} title={t('coach.myTraining')} className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-elevated text-cloud-dim" data-testid="coach-my-training">
+            <Dumbbell className="h-5 w-5" />
+          </button>
+        )}
         <NotificationBell />
         <button type="button" onClick={() => setSettingsOpen(true)} aria-label={t('coach.settings')} className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-elevated text-cloud-dim">
           <Settings2 className="h-5 w-5" />

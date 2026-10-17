@@ -504,4 +504,6 @@ export const pt: Messages = {
   'muscle.sideDelts': "Deltoide lateral",
   'muscle.biceps': "Bíceps",
   'muscle.triceps': "Tríceps",
+  'nav.team': "Equipe",
+  'coach.myTraining': "Meu treino",
 };
