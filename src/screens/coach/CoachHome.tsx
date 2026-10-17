@@ -5,8 +5,10 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
 import {
-  becomeCoach, fetchRoster, fetchRosterActivity, startCoachCheckout, type Activity,
+  becomeCoach, fetchEngagement, fetchRoster, fetchRosterActivity, localDay, startCoachCheckout, type Activity,
 } from '@/lib/coach/api';
+import { radarFor, radarList, type EngagementRow } from '@/lib/coach/engagement';
+import { RadarSection } from './RadarPanel';
 import {
   athleteSignals, COACH_LIMITS, coachTierNow, joinLink, summarize, triage, type CoachTier, type RosterRow, type TriageItem,
 } from '@/lib/coach/insights';
@@ -30,6 +32,7 @@ export function CoachHome() {
   const { t, dir } = useI18n();
   const [roster, setRoster] = useState<RosterRow[] | null>(null);
   const [activity, setActivity] = useState<Record<string, Activity>>({});
+  const [engagement, setEngagement] = useState<Record<string, EngagementRow>>({});
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -49,6 +52,8 @@ export function CoachHome() {
       const [r, a] = await Promise.all([fetchRoster(), fetchRosterActivity()]);
       setRoster(r);
       setActivity(a);
+      // The radar is an extra: if it fails, the rest of the home still works.
+      fetchEngagement().then(setEngagement).catch(() => setEngagement({}));
     } catch {
       setError(t('coach.loadError'));
       setRoster([]);
@@ -72,7 +77,20 @@ export function CoachHome() {
     if (params.get('checkout') === 'success') refreshProfile();
   }, [params, refreshProfile]);
 
-  const items = useMemo(() => (roster ? triage(roster, now) : []), [roster, now]);
+  const radars = useMemo(() => {
+    const today = localDay(now).today;
+    return (roster ?? []).filter((r) => engagement[r.athlete_id]).map((r) => ({ id: r.athlete_id, name: r.display_name?.trim() || '—', radar: radarFor(engagement[r.athlete_id], today, r.joined_at) }));
+  }, [roster, engagement, now]);
+  const radarItems = useMemo(() => radarList(radars), [radars]);
+  const items = useMemo(() => {
+    if (!roster) return [];
+    const byId = new Map(radars.map((x) => [x.id, x.radar]));
+    // A paused athlete (illness, travel) is not flagged and owes no check-in; messages and health screening still show.
+    const base = triage(roster, now).filter((it) => byId.get(it.athleteId)?.level !== 'paused' || it.kind === 'message' || it.kind === 'screening');
+    const ending = radars.filter((x) => x.radar.level !== 'paused' && x.radar.programEndsIn != null && x.radar.programEndsIn <= 7 && x.radar.programEndsIn >= -14)
+      .map((x) => ({ kind: 'program_end' as const, athleteId: x.id, name: x.name, count: x.radar.programEndsIn! }));
+    return [...base, ...ending];
+  }, [roster, now, radars]);
   const summary = useMemo(() => (roster ? summarize(roster, now) : null), [roster, now]);
 
   const visible = useMemo(() => {
@@ -174,6 +192,8 @@ export function CoachHome() {
           <ChevronRight className="h-5 w-5 text-cloud-muted rtl:rotate-180" />
         </button>
       )}
+
+      {roster && count > 0 && <RadarSection items={radarItems} onOpen={(id) => open(id)} />}
 
       {roster && count > 0 && (
         <section className="mb-6" aria-labelledby="needs-you">
@@ -323,6 +343,7 @@ function TriageRow({ item, first, onOpen, t }: { item: TriageItem; first: boolea
     screening: { icon: Stethoscope, tone: item.outcome === 'stop_and_clearance' ? 'text-rust' : 'text-gold', text: item.outcome ? t(`coach.outcome_${item.outcome}` as MessageKey) : '', tab: 'overview', action: t('coach.view') },
     message: { icon: MessageCircle, tone: 'text-sky', text: t('coach.triageMessage', { n: item.count ?? 1 }) + (item.waitingHours != null && item.waitingHours >= 1 ? ` · ${t('coach.waitingH', { h: item.waitingHours })}` : ''), tab: 'chat', action: t('coach.reply') },
     intake: { icon: ClipboardList, tone: 'text-sky', text: t('coach.triageIntake'), tab: 'overview', action: t('coach.view') },
+    program_end: { icon: CalendarCheck, tone: 'text-gold', text: (item.count ?? 0) < 0 ? t('radar.programEnded', { days: -(item.count ?? 0) }) : t('radar.programEnds', { days: item.count ?? 0 }), tab: 'training', action: t('coach.view') },
     checkin: { icon: ClipboardCheck, tone: 'text-lime', text: t('coach.triageCheckin'), tab: 'checkins', action: t('coach.review') },
     at_risk: { icon: AlertTriangle, tone: 'text-rust', text: item.reasons?.[0] ? reasonText(item.reasons[0], t) : t('coach.riskAtRisk'), tab: 'chat', action: t('coach.reachOut') },
     new: { icon: UserPlus, tone: 'text-gold', text: t('coach.triageNew'), tab: 'overview', action: t('coach.welcome') },

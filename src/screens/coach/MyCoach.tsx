@@ -11,6 +11,8 @@ import {
 import { normalizeCode, weekOf } from '@/lib/coach/insights';
 import { Avatar, Sheet } from './ui';
 import { IntakePrompt } from './IntakeForm';
+import { cleanPlans, ratingDue, SRBAI_ITEMS, type IfThenPlan } from '@/lib/coach/habit-science';
+import { listHabitRatings, rateHabit } from '@/lib/coach/api';
 import { shortDate } from '@/lib/coach/recovery-plan';
 import { ChatThread } from './ChatThread';
 import { CoachProfileCard } from './CoachProfileCard';
@@ -206,6 +208,12 @@ function Linked({ coach, me, tab, setTab, onLeft, t }: { coach: MyCoachInfo; me:
           <div><div className="text-sm font-semibold text-cloud">{t('coach.checkinPromptTitle')}</div><div className="text-xs text-cloud-dim">{t('coach.checkinPromptBody')}</div></div>
         </button>
       )}
+      {(checkins[0]?.plans ?? []).length > 0 && (
+        <div className="rounded-2xl border border-sky/30 bg-sky/[0.05] p-4" data-testid="my-plans">
+          <div className="mb-1 text-xs font-semibold text-sky">{t('ifthen.myTitle')}</div>
+          {(checkins[0].plans ?? []).map((p, k) => <p key={k} className="text-sm text-cloud" dir="auto">{t(p.kind === 'if' ? 'ifthen.lineIf' : 'ifthen.lineWhen', { cue: p.cue, action: p.action })}</p>)}
+        </div>
+      )}
       {lastReply?.coach_reply && (
         <div className="rounded-2xl border border-ink-border bg-ink-surface p-4">
           <div className="mb-1 text-xs text-cloud-dim">{t('coach.coachFeedback', { date: shortDate(lastReply.week_of, lang) })}</div>
@@ -246,7 +254,14 @@ const SCORES: [keyof CheckinInput, MessageKey, MessageKey][] = [
 ];
 
 function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t, questions }: { coachId: string; me: string; weekOfDate: string; existing: Checkin | null; onSaved: () => void; t: T; questions: string[] }) {
-  const empty: CheckinInput = { sleep: null, energy: null, stress: null, hunger: null, training_adherence: null, nutrition_adherence: null, weight_kg: null, waist_cm: null, win: null, struggle: null, question: null, answers: [] };
+  const empty: CheckinInput = { sleep: null, energy: null, stress: null, hunger: null, training_adherence: null, nutrition_adherence: null, weight_kg: null, waist_cm: null, win: null, struggle: null, question: null, answers: [], plans: [] };
+  const blankPlans = (): IfThenPlan[] => [{ kind: 'when', cue: '', action: '' }, { kind: 'when', cue: '', action: '' }, { kind: 'if', cue: '', action: '' }];
+  const [plans, setPlans] = useState<IfThenPlan[]>(() => {
+    const have = existing?.plans ?? [];
+    const b = blankPlans();
+    return have.length ? [...have, ...b].slice(0, Math.max(3, have.length)) : b;
+  });
+  const setPlan = (i: number, patch: Partial<IfThenPlan>) => setPlans((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const [answers, setAnswers] = useState<string[]>(() => questions.map((q) => existing?.answers?.find((a) => a.q === q)?.a ?? ''));
   useEffect(() => { setAnswers(questions.map((q) => existing?.answers?.find((a) => a.q === q)?.a ?? '')); }, [questions, existing]);
   const [v, setV] = useState<CheckinInput>(existing ? { ...empty, ...existing } : empty);
@@ -271,7 +286,7 @@ function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t, questions 
     setBusy(true);
     try {
       const qa = questions.map((q, i) => ({ q, a: (answers[i] ?? '').trim().slice(0, 1000) })).filter((x) => x.a);
-      await submitCheckin(coachId, me, weekOfDate, { ...v, weight_kg: w, waist_cm: ws, answers: qa }, photos);
+      await submitCheckin(coachId, me, weekOfDate, { ...v, weight_kg: w, waist_cm: ws, answers: qa, plans: cleanPlans(plans) }, photos);
       setMsg(t('coach.checkinSent'));
       setPhotos([]);
       onSaved();
@@ -317,6 +332,19 @@ function CheckinForm({ coachId, me, weekOfDate, existing, onSaved, t, questions 
           <textarea value={answers[i] ?? ''} onChange={(e) => setAnswers(answers.map((x, j) => (j === i ? e.target.value : x)))} rows={2} maxLength={1000} className={field} dir="auto" />
         </label>
       ))}
+      <section className="rounded-2xl border border-sky/30 bg-sky/[0.04] p-3" data-testid="ifthen-form">
+        <div className="text-sm font-semibold text-cloud">{t('ifthen.title')}</div>
+        <p className="mb-2 text-[11px] text-cloud-muted">{t('ifthen.help')}</p>
+        {plans.map((p, i) => (
+          <div key={i} className="mb-2 grid grid-cols-2 gap-1.5">
+            <input value={p.cue} onChange={(e) => setPlan(i, { cue: e.target.value.slice(0, 200) })} dir="auto" className={field} data-testid={`plan-cue-${i}`}
+              placeholder={t(p.kind === 'if' ? 'ifthen.ifPh' : 'ifthen.whenPh')} aria-label={t(p.kind === 'if' ? 'ifthen.ifLabel' : 'ifthen.whenLabel')} />
+            <input value={p.action} onChange={(e) => setPlan(i, { action: e.target.value.slice(0, 200) })} dir="auto" className={field} data-testid={`plan-action-${i}`}
+              placeholder={t(p.kind === 'if' ? 'ifthen.thenPh' : 'ifthen.doPh')} aria-label={t('ifthen.thenLabel')} />
+          </div>
+        ))}
+        <p className="text-[10px] leading-relaxed text-cloud-muted">{t('ifthen.source')}</p>
+      </section>
       <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-ink-border px-4 py-3">
         <Camera className="h-5 w-5 text-cloud-dim" />
         <span className="flex-1 text-xs text-cloud-dim">{photos.length ? t('coach.photosChosen', { n: photos.length }) : t('coach.addPhotos')}</span>
@@ -339,12 +367,22 @@ const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padSt
 function HabitsToday({ me, t }: { me: string; t: T }) {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<HabitLog[]>([]);
+  const [lastRated, setLastRated] = useState<Record<string, string>>({});
+  const [rating, setRating] = useState<Habit | null>(null);
   const load = useCallback(async () => {
-    try { const r = await listHabits(me); setHabits(r.habits); setLogs(r.logs); } catch { /* not shown */ }
+    try {
+      const r = await listHabits(me);
+      setHabits(r.habits); setLogs(r.logs);
+      const rs = await listHabitRatings(r.habits.map((h) => h.id));
+      const last: Record<string, string> = {};
+      for (const x of rs) if (!last[x.habit_id] || x.rated_on > last[x.habit_id]) last[x.habit_id] = x.rated_on;
+      setLastRated(last);
+    } catch { /* not shown */ }
   }, [me]);
   useEffect(() => { load(); }, [load]);
   if (!habits.length) return null;
   const today = dayKey(new Date());
+  const due = habits.filter((h) => ratingDue(lastRated[h.id] ?? null, today, h.created_at));
   const done = (id: string) => logs.some((l) => l.habit_id === id && l.day === today && l.done);
   const toggle = async (h: Habit) => {
     const next = !done(h.id);
@@ -368,6 +406,42 @@ function HabitsToday({ me, t }: { me: string; t: T }) {
           );
         })}
       </ul>
+      {due.length > 0 && !rating && (
+        <button type="button" onClick={() => setRating(due[0])} className="mt-2 w-full rounded-xl border border-sky/40 bg-sky/[0.06] px-3 py-2 text-start text-xs text-sky" data-testid="srbai-prompt">
+          {t('habitsci.ratePrompt', { habit: due[0].title })}
+        </button>
+      )}
+      {rating && <SrbaiForm habit={rating} me={me} today={today} t={t} onDone={() => { setRating(null); load(); }} />}
+    </div>
+  );
+}
+
+/** The 4 SRBAI items (Gardner et al. 2012), 1 = strongly disagree, 7 = strongly agree. */
+function SrbaiForm({ habit, me, today, t, onDone }: { habit: Habit; me: string; today: string; t: T; onDone: () => void }) {
+  const [items, setItems] = useState<(number | null)[]>([null, null, null, null]);
+  const [err, setErr] = useState(false);
+  const ready = items.every((x) => x != null);
+  const save = async () => {
+    try { await rateHabit(habit.id, me, today, items as number[]); onDone(); } catch { setErr(true); }
+  };
+  return (
+    <div className="mt-2 rounded-xl border border-sky/30 bg-ink-bg/60 p-3" data-testid="srbai-form">
+      <div className="mb-1 text-xs font-semibold text-cloud" dir="auto">{t('habitsci.stem', { habit: habit.title })}</div>
+      <p className="mb-2 text-[10px] text-cloud-muted">{t('habitsci.scale')}</p>
+      {SRBAI_ITEMS.map((k, i) => (
+        <div key={k} className="mb-2">
+          <div className="mb-1 text-[11px] text-cloud-dim">{t(`habitsci.item_${k}` as MessageKey)}</div>
+          <div className="grid grid-cols-7 gap-1" dir="ltr">
+            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+              <button key={n} type="button" onClick={() => setItems((xs) => xs.map((x, j) => (j === i ? n : x)))} data-testid={`srbai-${i}-${n}`}
+                className={cn('h-8 rounded-lg text-xs font-semibold', items[i] === n ? 'bg-sky text-ink-bg' : 'bg-ink-elevated text-cloud-dim')}>{n}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {err && <p className="mb-1 text-xs text-rust">{t('coach.saveError')}</p>}
+      <button type="button" disabled={!ready} onClick={save} className="w-full rounded-xl bg-sky py-2 text-xs font-bold text-ink-bg disabled:opacity-40" data-testid="srbai-save">{t('common.save')}</button>
+      <p className="mt-1 text-[10px] text-cloud-muted">{t('habitsci.source')}</p>
     </div>
   );
 }

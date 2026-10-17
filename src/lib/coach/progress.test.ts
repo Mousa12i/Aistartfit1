@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { strengthProgress } from './progress';
 
 const set = (exercise_name: string, weight: number, reps: number, rir: number | null = null, completed = true) =>
-  ({ exercise_name, weight, reps, rir, completed, set_number: 1 });
+  ({ exercise_id: null, exercise_name, weight, reps, rir, completed, set_number: 1, set_type: 'working' });
 
 describe('strength progress', () => {
   it('best estimated max per session, change first → last (Epley with reps in reserve)', () => {

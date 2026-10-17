@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon, Mic, Send, Square, Zap } from 'lucide-react';
+import { Clock, Image as ImageIcon, Languages, Mic, Send, Square, X, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
-import { listMessages, markRead, photoUrl, sendMessage, sendVoiceNote, type ChatMessage, type QuickReply } from '@/lib/coach/api';
+import {
+  cachedTranslations, cancelScheduled, coachErrorKey, listMessages, listScheduled, markRead, photoUrl, scheduleMessage, sendMessage, sendVoiceNote, translateMessage,
+  type ChatMessage, type QuickReply, type ScheduledMessage,
+} from '@/lib/coach/api';
 import { Lightbox, PrivatePhoto } from './ui';
 
 /** The coach–athlete conversation (text and photos). Refreshes every few seconds while open. */
@@ -28,6 +31,65 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
   const [recSecs, setRecSecs] = useState<number | null>(null);
   const recRef = useRef<{ rec: MediaRecorder; chunks: Blob[]; started: number; timer: number; stream: MediaStream } | null>(null);
   const canRecord = typeof window !== 'undefined' && typeof window.MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+  const isCoach = me === coachId;
+
+  // ---- translation: messages from the other person, into my app language; the original is always one tap away ----
+  const autoKey = `startfit.chatAutoTranslate.${coachId}.${athleteId}`;
+  const [autoTr, setAutoTr] = useState(() => { try { return localStorage.getItem(autoKey) === '1'; } catch { return false; } });
+  const [tr, setTr] = useState<Record<string, string>>({});
+  const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
+  const [trBusy, setTrBusy] = useState<Record<string, boolean>>({});
+  const [trError, setTrError] = useState<string | null>(null);
+  const translatable = (m: ChatMessage) => m.sender_id !== me && !!m.body?.trim() && !m.audio_path;
+  const translate = useCallback(async (m: ChatMessage) => {
+    setTrBusy((b) => ({ ...b, [m.id]: true }));
+    setTrError(null);
+    try {
+      const text = await translateMessage(m.id, lang);
+      setTr((x) => ({ ...x, [m.id]: text }));
+      setShowOriginal((x) => ({ ...x, [m.id]: false }));
+    } catch (e) {
+      const k = coachErrorKey(e);
+      setTrError(k === 'author_ai_consent' ? t('chattr.noConsent') : k === 'daily_limit_reached' ? t('chattr.limit') : t('chattr.error'));
+    } finally {
+      setTrBusy((b) => ({ ...b, [m.id]: false }));
+    }
+  }, [lang, t]);
+  const toggleAuto = () => {
+    const next = !autoTr;
+    setAutoTr(next);
+    try { localStorage.setItem(autoKey, next ? '1' : '0'); } catch { /* not kept */ }
+  };
+  useEffect(() => {
+    const ids = messages.filter(translatable).map((m) => m.id);
+    cachedTranslations(ids, lang).then((c) => setTr((x) => ({ ...c, ...x }))).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, lang]);
+  useEffect(() => {
+    if (!autoTr) return;
+    // Newest 10 untranslated messages from the other person, one at a time.
+    const todo = messages.filter((m) => translatable(m) && !tr[m.id] && !trBusy[m.id]).slice(-10);
+    let off = false;
+    (async () => { for (const m of todo) { if (off) break; await translate(m); } })();
+    return () => { off = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTr, messages.length]);
+
+  // ---- scheduled messages (coach only) ----
+  const [scheduled, setScheduled] = useState<ScheduledMessage[]>([]);
+  const [schedOpen, setSchedOpen] = useState(false);
+  const [schedAt, setSchedAt] = useState('');
+  const loadScheduled = useCallback(() => { if (isCoach) listScheduled(coachId, athleteId).then(setScheduled).catch(() => undefined); }, [isCoach, coachId, athleteId]);
+  useEffect(() => { loadScheduled(); }, [loadScheduled]);
+  const schedule = async () => {
+    const when = schedAt ? new Date(schedAt) : null;
+    if (!when || Number.isNaN(when.getTime()) || when.getTime() <= Date.now() + 60000) { setError(t('chattr.schedPast')); return; }
+    if (when.getTime() > Date.now() + 59 * 86400000) { setError(t('chattr.schedFar')); return; }
+    setSending(true); setError(null);
+    try { await scheduleMessage(coachId, athleteId, text, when); setText(''); setSchedOpen(false); setSchedAt(''); loadScheduled(); }
+    catch { setError(t('coach.sendError')); }
+    finally { setSending(false); }
+  };
 
   const stopRecording = (send: boolean) => {
     const r = recRef.current;
@@ -134,6 +196,13 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
 
   return (
     <div className="flex flex-col" data-testid="chat-thread">
+      <div className="mb-2 flex justify-end">
+        <button type="button" onClick={toggleAuto} aria-pressed={autoTr} data-testid="auto-translate"
+          className={cn('flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold', autoTr ? 'border-sky bg-sky/10 text-sky' : 'border-ink-border text-cloud-dim')}>
+          <Languages className="h-3.5 w-3.5" />{t('chattr.auto')}
+        </button>
+      </div>
+      {trError && <p className="mb-2 text-xs text-rust" data-testid="translate-error">{trError}</p>}
       <div className="min-h-[240px] space-y-2 pb-3">
         {messages.length === 0 && <p className="py-10 text-center text-sm text-cloud-dim">{t('coach.chatEmpty')}</p>}
         {messages.map((m) => {
@@ -142,7 +211,24 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
             <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
               <div className={cn('max-w-[82%] rounded-2xl px-3.5 py-2.5', mine ? 'rounded-ee-md bg-lime text-ink-bg' : 'rounded-es-md bg-ink-elevated text-cloud')}>
                 {m.image_path && <PrivatePhoto path={m.image_path} className="mb-1.5 max-h-64 w-full rounded-xl" onOpen={setLightbox} />}
-                {m.audio_path ? <VoiceNote path={m.audio_path} /> : m.body && <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.body}</p>}
+                {m.audio_path ? <VoiceNote path={m.audio_path} /> : m.body && (
+                  <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed" data-testid={tr[m.id] && !showOriginal[m.id] ? 'translated-text' : undefined}>
+                    {tr[m.id] && !showOriginal[m.id] ? tr[m.id] : m.body}
+                  </p>
+                )}
+                {translatable(m) && (
+                  <div className="mt-1 flex items-center gap-2 text-[10px]">
+                    {tr[m.id] ? (
+                      <button type="button" onClick={() => setShowOriginal((x) => ({ ...x, [m.id]: !x[m.id] }))} className="text-sky" data-testid="toggle-original">
+                        {showOriginal[m.id] ? t('chattr.showTranslation') : t('chattr.translatedShowOriginal')}
+                      </button>
+                    ) : (
+                      <button type="button" disabled={trBusy[m.id]} onClick={() => translate(m)} className="text-sky disabled:opacity-60" data-testid="translate-btn">
+                        {trBusy[m.id] ? t('chattr.translating') : t('chattr.translate')}
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className={cn('mt-1 text-[10px]', mine ? 'text-ink-bg/60' : 'text-cloud-muted')}>
                   {time(m.created_at)}{mine && m.read_at ? ` · ${t('coach.seen')}` : ''}
                 </div>
@@ -154,6 +240,30 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
       </div>
 
       {error && <p className="mb-2 text-xs text-rust">{error}</p>}
+
+      {isCoach && scheduled.length > 0 && (
+        <ul className="mb-2 space-y-1.5" data-testid="scheduled-list">
+          {scheduled.map((s) => (
+            <li key={s.id} className="flex items-start gap-2 rounded-xl border border-dashed border-ink-border px-3 py-2 text-xs">
+              <Clock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-sky" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] text-sky">{t('chattr.scheduledFor', { when: time(s.send_at) })}</span>
+                <span className="line-clamp-2 text-cloud" dir="auto">{s.body}</span>
+              </span>
+              <button type="button" onClick={async () => { try { await cancelScheduled(s.id); loadScheduled(); } catch { setError(t('coach.saveError')); } }} aria-label={t('chattr.cancelScheduled')} className="text-cloud-muted hover:text-rust" data-testid="scheduled-cancel"><X className="h-4 w-4" /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {isCoach && schedOpen && (
+        <div className="mb-2 flex items-end gap-2 rounded-xl bg-ink-elevated px-3 py-2" data-testid="schedule-box">
+          <label className="min-w-0 flex-1"><span className="mb-1 block text-[10px] text-cloud-dim">{t('chattr.sendAt')}</span>
+            <input type="datetime-local" value={schedAt} onChange={(e) => setSchedAt(e.target.value)} className="w-full rounded-lg border border-ink-border bg-ink-bg px-2 py-1.5 text-xs text-cloud" data-testid="schedule-at" />
+          </label>
+          <button type="button" onClick={schedule} disabled={sending || !text.trim() || !schedAt} className="rounded-lg bg-sky px-3 py-2 text-xs font-bold text-ink-bg disabled:opacity-40" data-testid="schedule-send">{t('chattr.schedule')}</button>
+        </div>
+      )}
 
       {showReplies && replies && replies.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -182,6 +292,12 @@ export function ChatThread({ coachId, athleteId, me, replies, firstName }: {
         <button type="button" onClick={() => fileRef.current?.click()} aria-label={t('coach.attachPhoto')} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-cloud-dim hover:text-cloud">
           <ImageIcon className="h-5 w-5" />
         </button>
+        {isCoach && (
+          <button type="button" onClick={() => setSchedOpen((v) => !v)} aria-label={t('chattr.schedule')} aria-pressed={schedOpen} data-testid="schedule-toggle"
+            className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', schedOpen ? 'text-sky' : 'text-cloud-dim')}>
+            <Clock className="h-5 w-5" />
+          </button>
+        )}
         {replies && replies.length > 0 && (
           <button type="button" onClick={() => setShowReplies((v) => !v)} aria-label={t('coach.quickReplies')} className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl', showReplies ? 'text-lime' : 'text-cloud-dim')}>
             <Zap className="h-5 w-5" />

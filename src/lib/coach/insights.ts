@@ -144,7 +144,7 @@ export function athleteSignals(row: RosterRow, now: Date, planned = plannedPerWe
   };
 }
 
-export type TriageKind = 'screening' | 'message' | 'checkin' | 'at_risk' | 'intake' | 'new';
+export type TriageKind = 'screening' | 'message' | 'checkin' | 'at_risk' | 'intake' | 'new' | 'program_end';
 
 export interface TriageItem {
   kind: TriageKind;
@@ -157,7 +157,7 @@ export interface TriageItem {
   outcome?: IntakeOutcome;
 }
 
-const ORDER: Record<TriageKind, number> = { screening: 0, message: 1, checkin: 2, at_risk: 3, intake: 4, new: 5 };
+const ORDER: Record<TriageKind, number> = { screening: 0, message: 1, checkin: 2, at_risk: 3, intake: 4, new: 5, program_end: 6 };
 
 /** Screening outcomes the coach must act on before programming hard training. */
 export function needsClearance(o: IntakeOutcome | null | undefined): boolean {

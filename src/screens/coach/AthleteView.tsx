@@ -17,6 +17,10 @@ import { rateFeedback, weightRate, type RateStatus } from '@/lib/nutrition/engin
 import { strengthProgress } from '@/lib/coach/progress';
 import { Avatar, Lightbox, PrivatePhoto, RiskBadge, ScoreDots, Sheet, Sparkline, StatBlock, humanize, reasonText, relativeDays } from './ui';
 import { ChatThread } from './ChatThread';
+import { ExportPanel, HabitStrength, MemoryTimeline, SessionReview } from './AthleteExtras';
+import { RadarCard } from './RadarPanel';
+import { fetchEngagement, localDay } from '@/lib/coach/api';
+import { radarFor, type Radar } from '@/lib/coach/engagement';
 import { AthleteBodyMap } from './AthleteBodyMap';
 
 type Tab = 'overview' | 'training' | 'nutrition' | 'checkins' | 'chat';
@@ -47,6 +51,7 @@ export function AthleteView() {
   const [replies, setReplies] = useState<QuickReply[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
+  const [radar, setRadar] = useState<Radar | null>(null);
   const tab = (params.get('tab') as Tab) || 'overview';
   const now = useMemo(() => new Date(), [detail]); // eslint-disable-line react-hooks/exhaustive-deps
   const me = user?.id ?? '';
@@ -61,6 +66,7 @@ export function AthleteView() {
       setDetail(d);
       setCheckins(c);
       setReplies(q);
+      fetchEngagement().then((e) => setRadar(e[id] ? radarFor(e[id], localDay().today, r.joined_at) : null)).catch(() => setRadar(null));
     } catch {
       setError(t('coach.loadError'));
     }
@@ -111,9 +117,9 @@ export function AthleteView() {
       {!row || (!detail && tab !== 'chat') ? (
         <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-ink-surface" />)}</div>
       ) : tab === 'overview' ? (
-        <Overview row={row} detail={detail!} now={now} me={me} t={t} onRemoved={() => navigate('/coach')} />
+        <Overview row={row} detail={detail!} now={now} me={me} t={t} onRemoved={() => navigate('/coach')} radar={radar} reload={load} />
       ) : tab === 'training' ? (
-        <Training athleteId={id} me={me} detail={detail!} now={now} t={t} reload={load} />
+        <Training athleteId={id} me={me} detail={detail!} now={now} t={t} reload={load} firstName={first} />
       ) : tab === 'nutrition' ? (
         <Nutrition athleteId={id} row={row} detail={detail!} t={t} reload={load} />
       ) : tab === 'checkins' ? (
@@ -127,7 +133,7 @@ export function AthleteView() {
 
 // ---------------- overview ----------------
 
-function Overview({ row, detail, now, me, t, onRemoved }: { row: RosterRow; detail: AthleteDetail; now: Date; me: string; t: T; onRemoved: () => void }) {
+function Overview({ row, detail, now, me, t, onRemoved, radar, reload }: { row: RosterRow; detail: AthleteDetail; now: Date; me: string; t: T; onRemoved: () => void; radar: Radar | null; reload: () => Promise<void> }) {
   const s = athleteSignals(row, now);
   const [note, setNote] = useState<string | null>(null);
   const [noteSaved, setNoteSaved] = useState(false);
@@ -158,7 +164,11 @@ function Overview({ row, detail, now, me, t, onRemoved }: { row: RosterRow; deta
         </div>
       )}
 
+      {radar && <RadarCard radar={radar} athleteId={row.athlete_id} name={row.display_name ?? ''} onChanged={reload} />}
+
       <IntakeCard row={row} me={me} t={t} lang={lang} />
+
+      <MemoryTimeline coachId={me} athleteId={row.athlete_id} />
 
       <AthleteBodyMap row={row} />
 
@@ -218,6 +228,8 @@ function Overview({ row, detail, now, me, t, onRemoved }: { row: RosterRow; deta
         />
       </div>
 
+      <ExportPanel athleteId={row.athlete_id} name={row.display_name ?? ''} />
+
       <button type="button" onClick={() => setConfirmRemove(true)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-ink-border py-2.5 text-xs font-semibold text-cloud-dim hover:text-rust">
         <UserMinus className="h-4 w-4" />{t('coach.removeAthlete')}
       </button>
@@ -235,7 +247,7 @@ function Overview({ row, detail, now, me, t, onRemoved }: { row: RosterRow; deta
 
 // ---------------- training ----------------
 
-function Training({ athleteId, me, detail, now, t, reload }: { athleteId: string; me: string; detail: AthleteDetail; now: Date; t: T; reload: () => Promise<void> }) {
+function Training({ athleteId, me, detail, now, t, reload, firstName }: { athleteId: string; me: string; detail: AthleteDetail; now: Date; t: T; reload: () => Promise<void>; firstName: string }) {
   const navigate = useNavigate();
   const [editing, setEditing] = useState<PlanExerciseRow | null>(null);
   const [giveOpen, setGiveOpen] = useState(false);
@@ -343,6 +355,7 @@ function Training({ athleteId, me, detail, now, t, reload }: { athleteId: string
                 </button>
                 {openNow && (
                   <div className="border-t border-ink-border/60 px-4 py-3">
+                    <SessionReview session={s} plan={detail.plan} coachId={me} athleteId={athleteId} firstName={firstName} />
                     {[...byEx.entries()].map(([name, sets]) => (
                       <div key={name} className="mb-1.5 text-xs">
                         <span className="text-cloud">{name}</span>{' '}
@@ -647,6 +660,12 @@ function Checkins({ items, replies, firstName, t, reload, row, detail, me }: { i
             {c.win && <p className="mt-3 text-xs"><span className="font-semibold text-lime">{t('coach.ciWin')}: </span><span dir="auto" className="text-cloud">{c.win}</span></p>}
             {c.struggle && <p className="mt-1.5 text-xs"><span className="font-semibold text-gold">{t('coach.ciStruggle')}: </span><span dir="auto" className="text-cloud">{c.struggle}</span></p>}
             {c.question && <p className="mt-1.5 text-xs"><span className="font-semibold text-sky">{t('coach.ciQuestion')}: </span><span dir="auto" className="text-cloud">{c.question}</span></p>}
+            {(c.plans ?? []).length > 0 && (
+              <div className="mt-2 rounded-xl bg-ink-elevated/60 px-3 py-2 text-xs" data-testid="checkin-plans">
+                <div className="mb-1 font-semibold text-cloud-dim">{t('ifthen.coachTitle')}</div>
+                {(c.plans ?? []).map((p, k) => <p key={k} className="text-cloud" dir="auto">{t(p.kind === 'if' ? 'ifthen.lineIf' : 'ifthen.lineWhen', { cue: p.cue, action: p.action })}</p>)}
+              </div>
+            )}
             {(c.answers ?? []).map((a) => (
               <p key={a.q} className="mt-1.5 text-xs"><span className="font-semibold text-cloud-dim" dir="auto">{a.q} </span><span dir="auto" className="text-cloud">{a.a}</span></p>
             ))}
@@ -805,6 +824,7 @@ function HabitsManager({ athleteId, me, now, t }: { athleteId: string; me: strin
           );
         })}
       </ul>
+      <HabitStrength habits={habits} logs={logs} t={t} />
       {habits.length < 6 && (
         <div className="mt-2 flex gap-2">
           <input value={title} onChange={(e) => setTitle(e.target.value.slice(0, 80))} placeholder={t('coach.habitPlaceholder')} className={field} dir="auto" data-testid="habit-input" />

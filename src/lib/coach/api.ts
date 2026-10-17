@@ -5,6 +5,9 @@ import { supabase } from '../supabase';
 import type { RosterRow } from './insights';
 import type { Glance } from './checkin-glance';
 import { screeningOutcome, type CoachIntake } from './screening';
+import type { EngagementRow } from './engagement';
+import type { HabitRating, IfThenPlan } from './habit-science';
+import { toCsv, type Cell } from './export-csv';
 
 const BUCKET = 'coach-media';
 
@@ -17,7 +20,7 @@ function fail(error: { message?: string } | null | undefined): never {
 /** Turns a database error code into a key the screens translate. */
 export function coachErrorKey(err: unknown): string {
   const m = err instanceof Error ? err.message : String(err);
-  for (const code of ['code_not_found', 'own_code', 'already_has_coach', 'coach_full', 'not_your_athlete', 'kcal_out_of_range', 'protein_out_of_range', 'coach_not_ready', 'coach_has_athletes', 'coach_subscription_active', 'athlete_ai_consent', 'daily_limit_reached', 'not_configured']) {
+  for (const code of ['code_not_found', 'own_code', 'already_has_coach', 'coach_full', 'not_your_athlete', 'kcal_out_of_range', 'protein_out_of_range', 'coach_not_ready', 'coach_has_athletes', 'coach_subscription_active', 'athlete_ai_consent', 'daily_limit_reached', 'not_configured', 'author_ai_consent', 'pause_out_of_range']) {
     if (m.includes(code)) return code;
   }
   return 'generic';
@@ -222,8 +225,8 @@ export async function fetchRoster(): Promise<RosterRow[]> {
 
 // ---------------- one athlete (coach side) ----------------
 
-export interface SetLog { exercise_name: string | null; set_number: number; reps: number | null; weight: number | null; completed: boolean; rir: number | null }
-export interface SessionRow { id: string; plan_name: string | null; completed_at: string | null; duration_seconds: number | null; total_sets: number | null; total_volume: number | null; session_rpe: number | null; notes: string | null; status: string; sets: SetLog[] }
+export interface SetLog { exercise_id: string | null; exercise_name: string | null; set_number: number; reps: number | null; weight: number | null; completed: boolean; rir: number | null; set_type: string | null }
+export interface SessionRow { id: string; plan_name: string | null; plan_id: string | null; plan_day: number | null; completed_at: string | null; duration_seconds: number | null; total_sets: number | null; total_volume: number | null; session_rpe: number | null; notes: string | null; status: string; sets: SetLog[] }
 export interface MealRow { id: string; name: string; kcal: number; protein: number; carbs_g: number | null; fat_g: number | null; logged_date: string; meal_slot: string | null }
 export interface WeightRow { date: string; kg: number }
 export interface PlanExerciseRow { id: string; exercise_id: string; exercise_order: number; sets: number; reps: string; rest_seconds: number | null; day_index: number; day_label: string | null; notes: string | null; rir_target: number | null; name: string }
@@ -244,7 +247,7 @@ export async function loadAthleteDetail(athleteId: string, now = new Date()): Pr
   const since14 = isoDate(new Date(now.getTime() - 13 * 86400000));
   const since120 = new Date(now.getTime() - 120 * 86400000).toISOString();
   const [sessRes, mealRes, weightRes, settingsRes, assignRes, dailyRes] = await Promise.all([
-    supabase.from('workout_sessions').select('id, plan_name, completed_at, duration_seconds, total_sets, total_volume, session_rpe, notes, status')
+    supabase.from('workout_sessions').select('id, plan_name, plan_id, plan_day, completed_at, duration_seconds, total_sets, total_volume, session_rpe, notes, status')
       .eq('user_id', athleteId).eq('status', 'completed').gte('completed_at', since28).order('completed_at', { ascending: false }).limit(40),
     supabase.from('meal_logs').select('id, name, kcal, protein, carbs_g, fat_g, logged_date, meal_slot').eq('user_id', athleteId).gte('logged_date', since14).order('logged_date', { ascending: false }).limit(400),
     supabase.from('body_measurements').select('weight_kg, recorded_at').eq('user_id', athleteId).gte('recorded_at', since120).order('recorded_at', { ascending: true }).limit(200),
@@ -255,7 +258,7 @@ export async function loadAthleteDetail(athleteId: string, now = new Date()): Pr
 
   const sessions = ((sessRes.data ?? []) as Omit<SessionRow, 'sets'>[]).map((s) => ({ ...s, sets: [] as SetLog[] }));
   if (sessions.length) {
-    const { data: logs } = await supabase.from('workout_set_logs').select('session_id, exercise_name, set_number, reps, weight, completed, rir')
+    const { data: logs } = await supabase.from('workout_set_logs').select('session_id, exercise_id, exercise_name, set_number, reps, weight, completed, rir, set_type')
       .in('session_id', sessions.slice(0, 12).map((s) => s.id)).order('set_number');
     for (const l of (logs ?? []) as (SetLog & { session_id: string })[]) sessions.find((s) => s.id === l.session_id)?.sets.push(l);
   }
@@ -441,12 +444,14 @@ export interface Checkin {
   photo_paths: string[];
   /** Answers to the coach's own questions. */
   answers?: { q: string; a: string }[];
+  /** If-then plans for the next week (implementation intentions). */
+  plans?: IfThenPlan[];
   submitted_at: string;
   coach_reply: string | null;
   reviewed_at: string | null;
 }
 
-export type CheckinInput = Pick<Checkin, 'sleep' | 'energy' | 'stress' | 'hunger' | 'training_adherence' | 'nutrition_adherence' | 'weight_kg' | 'waist_cm' | 'win' | 'struggle' | 'question' | 'answers'>;
+export type CheckinInput = Pick<Checkin, 'sleep' | 'energy' | 'stress' | 'hunger' | 'training_adherence' | 'nutrition_adherence' | 'weight_kg' | 'waist_cm' | 'win' | 'struggle' | 'question' | 'answers' | 'plans'>;
 
 export async function listCheckins(coachId: string, athleteId: string): Promise<Checkin[]> {
   const { data, error } = await supabase.from('coach_checkins').select('*').eq('coach_id', coachId).eq('athlete_id', athleteId)
@@ -612,4 +617,164 @@ export async function draftCheckinReply(checkinId: string, glance: Glance): Prom
   const body = await response.json().catch(() => ({})) as { reply?: unknown; used?: unknown; limit?: unknown; error?: unknown };
   if (!response.ok || typeof body.reply !== 'string') throw new Error(typeof body.error === 'string' ? body.error : 'ai_failed');
   return { reply: body.reply, used: Number(body.used ?? 0), limit: Number(body.limit ?? 0) };
+}
+
+// ---------------- engagement (dropout radar) and pause ----------------
+
+export async function fetchEngagement(): Promise<Record<string, EngagementRow>> {
+  const { data, error } = await supabase.rpc('coach_engagement', localDay());
+  if (error) fail(error);
+  const out: Record<string, EngagementRow> = {};
+  for (const r of (data ?? []) as EngagementRow[]) {
+    out[r.athlete_id] = {
+      ...r,
+      active_dates: (r.active_dates ?? []).map(String),
+      checkin_lengths: (r.checkin_lengths ?? []).map(Number),
+      coach_messages_14d: Number(r.coach_messages_14d ?? 0),
+    };
+  }
+  return out;
+}
+
+export async function setPause(athlete: string, until: string | null, reason: string | null): Promise<void> {
+  const { error } = await supabase.rpc('coach_set_pause', { athlete, until, reason });
+  if (error) fail(error);
+}
+
+// ---------------- coach memory (private timeline) ----------------
+
+export type MemoryKind = 'injury' | 'travel' | 'goal' | 'life' | 'preference' | 'other';
+export interface MemoryItem { id: string; kind: MemoryKind; body: string; happened_on: string; until_on: string | null; pinned: boolean; archived: boolean; created_at: string }
+
+export async function listMemory(coachId: string, athleteId: string): Promise<MemoryItem[]> {
+  const { data, error } = await supabase.from('coach_memory').select('id, kind, body, happened_on, until_on, pinned, archived, created_at')
+    .eq('coach_id', coachId).eq('athlete_id', athleteId).eq('archived', false).order('happened_on', { ascending: false }).limit(100);
+  if (error) fail(error);
+  return (data ?? []) as MemoryItem[];
+}
+
+export async function addMemory(coachId: string, athleteId: string, m: { kind: MemoryKind; body: string; happened_on: string; until_on: string | null }): Promise<void> {
+  const { error } = await supabase.from('coach_memory').insert({ coach_id: coachId, athlete_id: athleteId, kind: m.kind, body: m.body.trim().slice(0, 300), happened_on: m.happened_on, until_on: m.until_on, pinned: false, archived: false });
+  if (error) fail(error);
+}
+
+export async function updateMemory(id: string, patch: { pinned?: boolean; archived?: boolean }): Promise<void> {
+  const { error } = await supabase.from('coach_memory').update(patch).eq('id', id);
+  if (error) fail(error);
+}
+
+// ---------------- chat translation ----------------
+
+export async function cachedTranslations(ids: string[], lang: string): Promise<Record<string, string>> {
+  if (!ids.length) return {};
+  const { data } = await supabase.from('coach_message_translations').select('message_id, body').in('message_id', ids.slice(-150)).eq('lang', lang);
+  const out: Record<string, string> = {};
+  for (const r of (data ?? []) as { message_id: string; body: string }[]) out[r.message_id] = r.body;
+  return out;
+}
+
+export async function translateMessage(messageId: string, lang: string): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('auth_required');
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ messageId, lang }),
+  });
+  const body = await response.json().catch(() => ({})) as { text?: unknown; error?: unknown };
+  if (!response.ok || typeof body.text !== 'string') throw new Error(typeof body.error === 'string' ? body.error : 'ai_failed');
+  return body.text;
+}
+
+// ---------------- scheduled messages ----------------
+
+export interface ScheduledMessage { id: string; body: string; send_at: string; sent_at: string | null; canceled_at: string | null }
+
+export async function listScheduled(coachId: string, athleteId: string): Promise<ScheduledMessage[]> {
+  const { data, error } = await supabase.from('coach_scheduled_messages').select('id, body, send_at, sent_at, canceled_at')
+    .eq('coach_id', coachId).eq('athlete_id', athleteId).is('sent_at', null).is('canceled_at', null).order('send_at').limit(50);
+  if (error) fail(error);
+  return (data ?? []) as ScheduledMessage[];
+}
+
+export async function scheduleMessage(coachId: string, athleteId: string, body: string, sendAt: Date): Promise<void> {
+  const { error } = await supabase.from('coach_scheduled_messages').insert({ coach_id: coachId, athlete_id: athleteId, body: body.trim().slice(0, 4000), send_at: sendAt.toISOString() });
+  if (error) fail(error);
+}
+
+export async function cancelScheduled(id: string): Promise<void> {
+  const { error } = await supabase.from('coach_scheduled_messages').update({ canceled_at: new Date().toISOString() }).eq('id', id);
+  if (error) fail(error);
+}
+
+// ---------------- habit automaticity (SRBAI) ----------------
+
+export async function listHabitRatings(habitIds: string[]): Promise<HabitRating[]> {
+  if (!habitIds.length) return [];
+  const { data, error } = await supabase.from('coach_habit_ratings').select('habit_id, rated_on, items').in('habit_id', habitIds).order('rated_on').limit(500);
+  if (error) fail(error);
+  return ((data ?? []) as HabitRating[]).map((r) => ({ ...r, items: (r.items ?? []).map(Number) }));
+}
+
+export async function rateHabit(habitId: string, athleteId: string, ratedOn: string, items: number[]): Promise<void> {
+  const { error } = await supabase.from('coach_habit_ratings').upsert({ habit_id: habitId, athlete_id: athleteId, rated_on: ratedOn, items }, { onConflict: 'habit_id,rated_on' });
+  if (error) fail(error);
+}
+
+// ---------------- export (CSV, full history) ----------------
+
+export type ExportKind = 'workouts' | 'sets' | 'food' | 'weights' | 'checkins';
+
+/** Reads up to `max` rows page by page (the API returns at most 1000 per request). */
+async function allRows<R>(build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message?: string } | null }>, max = 20000): Promise<R[]> {
+  const out: R[] = [];
+  for (let from = 0; from < max; from += 1000) {
+    const { data, error } = await build(from, from + 999);
+    if (error) fail(error);
+    const rows = (data ?? []) as R[];
+    out.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
+export async function exportAthleteData(athleteId: string, kind: ExportKind): Promise<string> {
+  if (kind === 'workouts') {
+    const rows = await allRows<Record<string, Cell>>((a, b) => supabase.from('workout_sessions').select('completed_at, plan_name, duration_seconds, total_sets, total_reps, total_volume, session_rpe, notes')
+      .eq('user_id', athleteId).eq('status', 'completed').order('completed_at').range(a, b));
+    return toCsv(['completed_at', 'plan', 'minutes', 'sets', 'reps', 'volume_kg', 'session_rpe', 'notes'],
+      rows.map((r) => [r.completed_at, r.plan_name, r.duration_seconds != null ? Math.round(Number(r.duration_seconds) / 60) : null, r.total_sets, r.total_reps, r.total_volume != null ? Number(r.total_volume) : null, r.session_rpe, r.notes]));
+  }
+  if (kind === 'sets') {
+    const sessions = await allRows<{ id: string; completed_at: string }>((a, b) => supabase.from('workout_sessions').select('id, completed_at').eq('user_id', athleteId).eq('status', 'completed').order('completed_at').range(a, b));
+    const at = new Map(sessions.map((s) => [s.id, s.completed_at]));
+    const sets: Record<string, Cell>[] = [];
+    for (let i = 0; i < sessions.length; i += 100) {
+      const ids = sessions.slice(i, i + 100).map((s) => s.id);
+      sets.push(...await allRows<Record<string, Cell>>((a, b) => supabase.from('workout_set_logs').select('session_id, exercise_name, set_number, set_type, reps, weight, rir, completed')
+        .in('session_id', ids).order('id').range(a, b)));
+    }
+    sets.sort((x, y) => String(at.get(String(x.session_id)) ?? '').localeCompare(String(at.get(String(y.session_id)) ?? '')) || Number(x.set_number) - Number(y.set_number));
+    return toCsv(['completed_at', 'exercise', 'set', 'type', 'reps', 'weight_kg', 'rir', 'completed'],
+      sets.map((r) => [at.get(String(r.session_id)) ?? '', r.exercise_name, r.set_number, r.set_type, r.reps, r.weight != null ? Number(r.weight) : null, r.rir, r.completed]));
+  }
+  if (kind === 'food') {
+    const rows = await allRows<Record<string, Cell>>((a, b) => supabase.from('meal_logs').select('logged_date, meal_slot, name, grams, kcal, protein, carbs_g, fat_g, fiber_g')
+      .eq('user_id', athleteId).order('logged_date').order('created_at').range(a, b));
+    return toCsv(['date', 'meal', 'food', 'grams', 'kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'],
+      rows.map((r) => [r.logged_date, r.meal_slot, r.name, r.grams != null ? Number(r.grams) : null, r.kcal, r.protein != null ? Number(r.protein) : null, r.carbs_g != null ? Number(r.carbs_g) : null, r.fat_g != null ? Number(r.fat_g) : null, r.fiber_g != null ? Number(r.fiber_g) : null]));
+  }
+  if (kind === 'weights') {
+    const rows = await allRows<Record<string, Cell>>((a, b) => supabase.from('body_measurements').select('recorded_at, weight_kg, body_fat_percent, waist_cm, hips_cm, chest_cm, arm_cm, thigh_cm')
+      .eq('user_id', athleteId).order('recorded_at').range(a, b));
+    const n = (v: Cell) => (v != null ? Number(v) : null);
+    return toCsv(['recorded_at', 'weight_kg', 'body_fat_pct', 'waist_cm', 'hips_cm', 'chest_cm', 'arm_cm', 'thigh_cm'],
+      rows.map((r) => [r.recorded_at, n(r.weight_kg), n(r.body_fat_percent), n(r.waist_cm), n(r.hips_cm), n(r.chest_cm), n(r.arm_cm), n(r.thigh_cm)]));
+  }
+  const rows = await allRows<Record<string, unknown>>((a, b) => supabase.from('coach_checkins').select('week_of, submitted_at, sleep, energy, stress, hunger, training_adherence, nutrition_adherence, weight_kg, waist_cm, win, struggle, question, answers, coach_reply, reviewed_at')
+    .eq('athlete_id', athleteId).order('week_of').range(a, b));
+  return toCsv(['week_of', 'submitted_at', 'sleep', 'energy', 'stress', 'hunger', 'training', 'nutrition', 'weight_kg', 'waist_cm', 'win', 'struggle', 'question', 'answers', 'coach_reply', 'reviewed_at'],
+    rows.map((r) => [r.week_of as Cell, r.submitted_at as Cell, r.sleep as Cell, r.energy as Cell, r.stress as Cell, r.hunger as Cell, r.training_adherence as Cell, r.nutrition_adherence as Cell,
+      r.weight_kg != null ? Number(r.weight_kg) : null, r.waist_cm != null ? Number(r.waist_cm) : null, r.win as Cell, r.struggle as Cell, r.question as Cell,
+      Array.isArray(r.answers) ? (r.answers as { q: string; a: string }[]).map((x) => `${x.q}: ${x.a}`).join(' | ') : '', r.coach_reply as Cell, r.reviewed_at as Cell]));
 }
