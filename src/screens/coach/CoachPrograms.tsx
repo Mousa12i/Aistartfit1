@@ -351,7 +351,7 @@ function RowEditor({ r, editable, t, open, onToggle, first, last, onMove, onSave
 
 const mini = 'mt-1 w-full rounded-lg border border-ink-border bg-ink-surface px-2 py-1.5 text-center text-sm text-cloud';
 
-function ExercisePicker({ t, onClose, onPick, title }: { t: T; onClose: () => void; onPick: (ex: ExerciseHit) => void; title?: string }) {
+export function ExercisePicker({ t, onClose, onPick, title }: { t: T; onClose: () => void; onPick: (ex: ExerciseHit) => void; title?: string }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<ExerciseHit[]>([]);
   useEffect(() => {

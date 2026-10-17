@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ClipboardCheck, Dumbbell, MessageCircle, Target, UserPlus, X } from 'lucide-react';
+import { Bell, ClipboardCheck, Dumbbell, HeartPulse, MessageCircle, Target, UserPlus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
@@ -13,6 +13,7 @@ const KIND: Record<NotificationKind, { icon: typeof Bell; key: MessageKey; tone:
   new_athlete: { icon: UserPlus, key: 'notif.newAthlete', tone: 'text-gold' },
   targets_changed: { icon: Target, key: 'notif.targetsChanged', tone: 'text-gold' },
   routine_given: { icon: Dumbbell, key: 'notif.routineGiven', tone: 'text-lime' },
+  recovery_plan: { icon: HeartPulse, key: 'notif.recoveryPlan', tone: 'text-sky' },
 };
 
 /** Bell with unread count; opens the notification list. Refreshes every 30 s while the app is open. */
@@ -96,7 +97,7 @@ export function NotificationBell({ className }: { className?: string }) {
             {items && items.length === 0 && <p className="py-10 text-center text-sm text-cloud-dim">{t('notif.empty')}</p>}
             <ul className="space-y-1.5">
               {(items ?? []).map((n) => {
-                const k = KIND[n.kind];
+                const k = KIND[n.kind] ?? KIND.message;
                 const Icon = k.icon;
                 return (
                   <li key={n.id}>

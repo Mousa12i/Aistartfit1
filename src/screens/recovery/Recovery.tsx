@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CoachRecoveryCard } from './CoachRecoveryCard';
 import { useNavigate } from 'react-router-dom';
 import { Activity, AlertCircle, Brain, Download, FileText, RefreshCw, Stethoscope, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -217,6 +218,7 @@ export function Recovery({ onBack }: RecoveryProps) {
         {tab === 'today' && state && (
           <>
             <CoachNoteCard muscles={muscleStates} sleepLastNight={sleepLastNight} nextWorkout={coachNextWorkout} onAsk={() => setTab('coach')} />
+            <CoachRecoveryCard sleepHistory={data?.sleepHistory ?? []} />
             <DecisionCard state={state} onCheckIn={() => setShowCheckIn(true)} onTriage={() => setTab('injury')} />
 
             <section className="space-y-3">

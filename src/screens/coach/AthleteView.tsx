@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Check, ChevronDown, ChevronLeft, Columns2, Utensils, Dumbbell, Pencil, Plus, TrendingUp, UserMinus, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, Columns2, HeartPulse, Utensils, Dumbbell, Pencil, Plus, TrendingUp, UserMinus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useI18n, type MessageKey } from '@/lib/i18n';
@@ -259,6 +259,14 @@ function Training({ athleteId, me, detail, now, t, reload }: { athleteId: string
   return (
     <div className="space-y-4">
       {msg && <p className="rounded-xl bg-lime/10 px-3 py-2 text-xs text-lime">{msg}</p>}
+      <button type="button" onClick={() => navigate(`/coach/athlete/${athleteId}/recovery-plan`)} data-testid="open-recovery-plan"
+        className="flex w-full items-center gap-3 rounded-2xl border border-sky/40 bg-sky/[0.06] px-4 py-3.5 text-start">
+        <HeartPulse className="h-5 w-5 flex-shrink-0 text-sky" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-cloud">{t('recplan.title')}</span>
+          <span className="block text-xs text-cloud-dim">{t('recplan.entry')}</span>
+        </span>
+      </button>
       <div className="rounded-2xl border border-ink-border bg-ink-surface p-4">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">

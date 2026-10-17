@@ -93,7 +93,7 @@ export function registerServiceWorker(): void {
 
 // ---------------- in-app list ----------------
 
-export type NotificationKind = 'message' | 'checkin' | 'checkin_reviewed' | 'new_athlete' | 'targets_changed' | 'routine_given';
+export type NotificationKind = 'message' | 'checkin' | 'checkin_reviewed' | 'new_athlete' | 'targets_changed' | 'routine_given' | 'recovery_plan';
 
 export interface AppNotification {
   id: string;

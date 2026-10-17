@@ -145,6 +145,12 @@ export const TRAINING_REFERENCES: Record<string, Reference> = {
     citation: 'Watson NF, Badr MS, Belenky G, et al. Recommended amount of sleep for a healthy adult: a joint consensus statement of the American Academy of Sleep Medicine and Sleep Research Society. Sleep. 2015;38(6):843–844.',
     url: doi('10.5665/sleep.4716'),
   },
+  paluch2022: {
+    id: 'paluch2022',
+    short: 'Paluch et al., 2022',
+    citation: 'Paluch AE, Bajpai S, Bassett DR, et al. Daily steps and all-cause mortality: a meta-analysis of 15 international cohorts. Lancet Public Health. 2022;7(3):e219–e228.',
+    url: doi('10.1016/S2468-2667(21)00302-9'),
+  },
   knowles2018: {
     id: 'knowles2018',
     short: 'Knowles et al., 2018',

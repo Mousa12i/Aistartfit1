@@ -3,6 +3,9 @@ import { fetchPlanExercises, fetchExercises, fetchActiveSession, createWorkoutSe
 import { routineDays } from '@/lib/training/routine';
 import { relatedRoutineIds } from '@/lib/training/api';
 import { DeloadBanner } from '@/components/recovery/DeloadBanner';
+import { supabase } from '@/lib/supabase';
+import { deloadSets, deloadState, loadRecoveryPlan, shortDate } from '@/lib/coach/recovery-plan';
+import { localDateKey } from '@/lib/recovery/store';
 import { TimeFitSheet, applyFit, type PairInfo } from './TimeFit';
 import { SHORT_ON_TIME_PREFIX, type FitResult } from '@/lib/training/time-fit';
 import type { WorkoutPlanExercise, SetType, Exercise } from '@/lib/types';
@@ -109,6 +112,8 @@ export function ActiveWorkout({ planId, day = null, exerciseId = null, onBack, o
   const audio = useAudioCoach();
   const [showTimeFit, setShowTimeFit] = useState(false);
   const [pairs, setPairs] = useState<Record<string, PairInfo>>({});
+  const { t: tr, lang: uiLang } = useI18n();
+  const [coachDeload, setCoachDeload] = useState<{ pct: number; end: string; note: string | null } | null>(null);
   const [fitted, setFitted] = useState<{ target: number; original: WorkoutPlanExercise[]; summary: string } | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -171,6 +176,12 @@ export function ActiveWorkout({ planId, day = null, exerciseId = null, onBack, o
             .map((ex, i) => adhocRow(ex, i));
         }
 
+        // A deload week set by the coach: fewer sets on routine workouts (logged sets are always kept).
+        if (planId) {
+          const coachDl = await coachDeloadToday().catch(() => null);
+          setCoachDeload(coachDl);
+          if (coachDl) rows = rows.map((r) => ({ ...r, sets: deloadSets(r.sets, coachDl.pct) }));
+        }
         setExercises(rows);
         setPairs(coachSupersets(rows));
         const initial: Record<number, SetState[]> = {};
@@ -575,7 +586,12 @@ export function ActiveWorkout({ planId, day = null, exerciseId = null, onBack, o
         </div>
       </div>
 
-      <DeloadBanner />
+      {coachDeload ? (
+        <div className="mx-5 mb-3 rounded-xl border border-gold/40 bg-gold/10 p-3" data-testid="coach-deload-banner">
+          <p className="text-[11px] font-bold text-gold">{tr('recplan.deloadWorkout', { pct: coachDeload.pct, end: shortDate(coachDeload.end, uiLang) })}</p>
+          {coachDeload.note && <p className="mt-1 whitespace-pre-line text-[11px] text-cloud" dir="auto">{coachDeload.note}</p>}
+        </div>
+      ) : <DeloadBanner />}
       <div className="px-5 mb-4">
         <div className="flex items-center justify-between gap-2 mb-1">
           {dayLabel ? <p className="text-xs font-semibold text-lime">{dayLabel}</p> : <span />}
@@ -958,6 +974,15 @@ export function ActiveWorkout({ planId, day = null, exerciseId = null, onBack, o
       />
     </div>
   );
+}
+
+/** The coach's deload for today, if one is running. */
+async function coachDeloadToday(): Promise<{ pct: number; end: string; note: string | null } | null> {
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return null;
+  const plan = await loadRecoveryPlan(data.user.id);
+  const st = deloadState(plan, localDateKey(new Date()));
+  return st.kind === 'active' ? { pct: st.pct, end: st.end, note: plan?.deload_note ?? null } : null;
 }
 
 /** Supersets the coach set with a group letter: consecutive exercises with the same letter become A1/A2. */
