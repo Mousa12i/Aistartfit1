@@ -97,7 +97,7 @@ export async function loadAthleteWeek(row: RosterRow, cache: MappingCache, now =
   if (planId) {
     const [{ data: p }, { data: ex }] = await Promise.all([
       supabase.from('workout_plans').select('id, sessions_per_week').eq('id', planId).maybeSingle(),
-      supabase.from('workout_plan_exercises').select('id, exercise_id, sets, reps, rest_seconds, notes, day_index, exercise:exercises(name)')
+      supabase.from('workout_plan_exercises').select('id, exercise_id, sets, reps, rest_seconds, notes, day_index, exercise:exercises!workout_plan_exercises_exercise_id_fkey(name)')
         .eq('plan_id', planId).order('day_index').order('exercise_order'),
     ]);
     if (p) {

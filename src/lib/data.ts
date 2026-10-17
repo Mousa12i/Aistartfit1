@@ -175,7 +175,7 @@ export async function fetchWorkoutPlanById(id: string): Promise<WorkoutPlan | nu
 export async function fetchPlanExercises(planId: string): Promise<WorkoutPlanExercise[]> {
   const { data, error } = await supabase
     .from('workout_plan_exercises')
-    .select('*, exercise:exercises(*)')
+    .select('*, exercise:exercises!workout_plan_exercises_exercise_id_fkey(*)')
     .eq('plan_id', planId)
     .order('exercise_order');
   if (error) throw error;

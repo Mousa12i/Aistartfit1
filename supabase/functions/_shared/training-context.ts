@@ -66,7 +66,7 @@ export async function loadTrainingContext(db: Db, userId: string, now = new Date
   if (assign?.plan_id) {
     const [planRes, exRes] = await Promise.all([
       db.from('workout_plans').select('name, details').eq('id', assign.plan_id).maybeSingle(),
-      db.from('workout_plan_exercises').select('sets, reps, day_index, day_label, exercise_order, exercise:exercises(name)').eq('plan_id', assign.plan_id).order('day_index').order('exercise_order').limit(150),
+      db.from('workout_plan_exercises').select('sets, reps, day_index, day_label, exercise_order, exercise:exercises!workout_plan_exercises_exercise_id_fkey(name)').eq('plan_id', assign.plan_id).order('day_index').order('exercise_order').limit(150),
     ]);
     const plan = planRes.error ? null : (planRes.data as Row | null);
     if (plan) {

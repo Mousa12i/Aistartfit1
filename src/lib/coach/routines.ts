@@ -39,7 +39,7 @@ export async function readRoutine(id: string): Promise<RoutineFull | null> {
   const uid = await me();
   const [{ data: p, error }, { data: rows, error: e2 }] = await Promise.all([
     supabase.from('workout_plans').select('id, name, sessions_per_week, is_public, created_by').eq('id', id).maybeSingle(),
-    supabase.from('workout_plan_exercises').select('id, exercise_id, exercise_order, sets, reps, rest_seconds, day_index, day_label, notes, exercise:exercises(name)')
+    supabase.from('workout_plan_exercises').select('id, exercise_id, exercise_order, sets, reps, rest_seconds, day_index, day_label, notes, exercise:exercises!workout_plan_exercises_exercise_id_fkey(name)')
       .eq('plan_id', id).order('day_index').order('exercise_order'),
   ]);
   if (error) throw error;

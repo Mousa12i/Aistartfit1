@@ -254,7 +254,7 @@ export async function loadAthleteDetail(athleteId: string, now = new Date()): Pr
   if (assign) {
     const [{ data: p }, { data: ex }] = await Promise.all([
       supabase.from('workout_plans').select('id, name, source').eq('id', assign.plan_id).maybeSingle(),
-      supabase.from('workout_plan_exercises').select('id, exercise_id, exercise_order, sets, reps, rest_seconds, day_index, day_label, notes, rir_target, exercise:exercises(name)')
+      supabase.from('workout_plan_exercises').select('id, exercise_id, exercise_order, sets, reps, rest_seconds, day_index, day_label, notes, rir_target, exercise:exercises!workout_plan_exercises_exercise_id_fkey(name)')
         .eq('plan_id', assign.plan_id).order('day_index').order('exercise_order'),
     ]);
     if (p) {
